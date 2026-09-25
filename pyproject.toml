@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "easybuild-stack"
+version = "0.1.0"
+description = "Layered EasyBuild stack driver"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "platformdirs>=4.0",
+    "PyYAML>=6.0",
+    "rich>=13.0",
+    "typer>=0.12",
+]
+
+[project.scripts]
+ebstack = "easybuild_stack.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/easybuild_stack"]
+
