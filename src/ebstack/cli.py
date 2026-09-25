@@ -89,9 +89,9 @@ def main(
         typer.Option(
             "--config",
             envvar="EBSTACK_CONFIG",
-            help="Path to easybuild-stack.yaml.",
+            help="Path to ebstack.yaml.",
         ),
-    ] = Path("easybuild-stack.yaml"),
+    ] = Path("ebstack.yaml"),
 ) -> None:
     ctx.obj = AppState(config_path=config)
 

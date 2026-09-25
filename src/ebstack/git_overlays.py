@@ -10,7 +10,7 @@ from .errors import EbstackError
 
 
 def cache_root() -> Path:
-    return Path(user_cache_dir("easybuild-stack"))
+    return Path(user_cache_dir("ebstack"))
 
 
 def materialize_easyconfigs_prs(
@@ -85,4 +85,3 @@ def git_stdout(args: list[str]) -> str:
         stderr = completed.stderr.strip()
         raise EbstackError(f"git {' '.join(args)} failed: {stderr}")
     return completed.stdout
-
