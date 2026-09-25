@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import re
 import shlex
+import time
 from dataclasses import dataclass
-from datetime import datetime
+import datetime as dt
 from functools import wraps
 from pathlib import Path
 from typing import Annotated
@@ -59,6 +61,26 @@ JobWalltimeOption = Annotated[
     int | None,
     typer.Option("--job-max-walltime", help="EasyBuild max job walltime in hours."),
 ]
+SinceOption = Annotated[
+    str | None,
+    typer.Option("--since", help="Only check logs modified since DATE or Nd."),
+]
+ArchOption = Annotated[
+    str | None,
+    typer.Option("--arch", help="Only check logs for CPU_ARCH."),
+]
+ShowSuccessOption = Annotated[
+    bool,
+    typer.Option("--show-success", help="Include successful builds in the report."),
+]
+
+LOG_FAILURE_PATTERN = re.compile(
+    r"^\s*\* \[FAILED\]|^ERROR:|EasyBuild crashed|Build failed|FAILED",
+    re.MULTILINE,
+)
+LOG_SUCCESS_PATTERN = re.compile(r"^\s*\* \[SUCCESS\]|Build succeeded", re.MULTILINE)
+LOG_SUMMARY_PATTERN = re.compile(r"^\s*\* \[(SUCCESS|FAILED|SKIPPED)\] (.*)$", re.MULTILINE)
+ARCH_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 @dataclass(frozen=True)
@@ -182,6 +204,10 @@ def resolve_for_command(
 
     if materialize_prs and stack.easyconfig_prs:
         repo_url = os.environ.get("EASYCONFIGS_REPO_URL", DEFAULT_REPO_URL)
+        err_console.print(
+            "Checking out EasyBuild easyconfig PRs: "
+            f"{', '.join(stack.easyconfig_prs)}"
+        )
         overlays = materialize_easyconfigs_prs(stack.easyconfig_prs, repo_url=repo_url)
         stack = resolve_stack(
             config=config,
@@ -251,7 +277,7 @@ def print_config(stack, *, command: list[str], label: str) -> None:
 
 
 def job_log_dir(stack, timestamp: str | None = None) -> Path:
-    selected_timestamp = timestamp or datetime.now().strftime("%Y%m%d-%H%M%S")
+    selected_timestamp = timestamp or dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     return stack.log_root / stack.cpu_arch / selected_timestamp
 
 
@@ -259,6 +285,66 @@ def print_items(title: str, items: tuple[str, ...]) -> None:
     console.print(f"\n{title}:")
     for item in items:
         console.print(f"  {item}")
+
+
+def parse_since_epoch(value: str) -> float:
+    match = re.fullmatch(r"([1-9][0-9]*)d", value)
+    if match:
+        return (dt.datetime.now() - dt.timedelta(days=int(match.group(1)))).timestamp()
+
+    for date_format in (
+        "%Y-%m-%d",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%dT%H:%M:%S",
+    ):
+        try:
+            parsed = dt.datetime.strptime(value, date_format)
+        except ValueError:
+            continue
+        return time.mktime(parsed.timetuple())
+
+    raise EbstackError(f"Could not parse --since value '{value}'")
+
+
+def detect_log_status(path: Path) -> str:
+    content = path.read_text(encoding="utf-8", errors="replace")
+    if LOG_FAILURE_PATTERN.search(content):
+        return "FAILED"
+    if LOG_SUCCESS_PATTERN.search(content):
+        return "SUCCESS"
+    return "UNKNOWN"
+
+
+def detect_log_module(path: Path) -> str:
+    content = path.read_text(encoding="utf-8", errors="replace")
+    matches = LOG_SUMMARY_PATTERN.findall(content)
+    if matches:
+        return matches[-1][1]
+
+    base = path.name
+    for suffix in (".out", ".log"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)]
+            break
+    return re.sub(r"-[0-9]*$", "", base)
+
+
+def detect_log_arch(path: Path, log_root: Path) -> str:
+    relative = path.relative_to(log_root)
+    return relative.parts[0]
+
+
+def find_log_files(search_root: Path, since_epoch: float) -> list[Path]:
+    files = [
+        path
+        for path in search_root.rglob("*")
+        if path.is_file()
+        and path.suffix in {".out", ".log"}
+        and path.stat().st_mtime >= since_epoch
+    ]
+    return sorted(files)
 
 
 def exit_with_status(status: int) -> None:
@@ -362,6 +448,79 @@ def fetch_sources(
     for path in missing_paths:
         console.print(f"  {path}")
     exit_with_status(run_command(fetch_command(stack, missing_paths)))
+
+
+@app.command("check-logs")
+@handle_errors
+def check_logs(
+    ctx: typer.Context,
+    since: SinceOption = None,
+    arch: ArchOption = None,
+    show_success: ShowSuccessOption = False,
+) -> None:
+    state = require_state(ctx)
+    config = load_stack_config(state.config_path)
+    log_root = config.log_root
+
+    if not log_root.is_dir():
+        raise EbstackError(f"Log directory does not exist: {log_root}")
+
+    if arch is not None:
+        if not ARCH_PATTERN.fullmatch(arch):
+            raise EbstackError(f"Invalid --arch value '{arch}'")
+        search_root = log_root / arch
+        if not search_root.is_dir():
+            raise EbstackError(f"Log directory does not exist for --arch '{arch}': {search_root}")
+    else:
+        search_root = log_root
+
+    since_epoch = parse_since_epoch(since) if since else 0
+    log_files = find_log_files(search_root, since_epoch)
+
+    console.print("EasyBuild log summary")
+    console.print(f"  Log root:     {log_root}")
+    if arch is not None:
+        console.print(f"  CPU_ARCH:     {arch}")
+    if since is not None:
+        console.print(f"  Since:        {since}")
+    console.print(f"  Logs checked: {len(log_files)}")
+    console.print("\nSummary:")
+
+    failed_count = 0
+    success_count = 0
+    unknown_count = 0
+    printed_count = 0
+
+    for path in log_files:
+        status = detect_log_status(path)
+        log_arch = detect_log_arch(path, log_root)
+        module = detect_log_module(path)
+
+        if status == "FAILED":
+            failed_count += 1
+        elif status == "SUCCESS":
+            success_count += 1
+        else:
+            unknown_count += 1
+
+        if status == "SUCCESS" and not show_success:
+            continue
+
+        console.print(f" * [{status}] {log_arch} {module} ({path})", soft_wrap=True)
+        printed_count += 1
+
+    if printed_count == 0:
+        if show_success:
+            console.print("No log files matched.")
+        else:
+            console.print("No failed or unknown builds found.")
+
+    console.print(
+        f"\nTotals: {failed_count} failed, {success_count} succeeded, {unknown_count} unknown"
+    )
+
+    if failed_count > 0 or unknown_count > 0:
+        exit_with_status(1)
 
 
 @app.command("install")
