@@ -20,3 +20,8 @@ ebstack = "ebstack.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ebstack"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
