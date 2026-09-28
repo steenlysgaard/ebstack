@@ -1,7 +1,8 @@
 # ebstack
 
-`ebstack` is a small command-line wrapper around EasyBuild for maintaining and
-installing a repeatable stack of modules across HPC partitions.
+`ebstack` is a small command-line wrapper around EasyBuild. It helps you keep a
+repeatable module stack for HPC partitions and reinstall that stack with the
+same commands whenever a partition is rebuilt or added.
 
 ```bash
 export EBSTACK_CONFIG=./ebstack.yaml
@@ -23,30 +24,30 @@ CPU_ARCH=skylake_el9 ebstack --config ./ebstack.yaml show-config
 ## Why This Exists
 
 When a new HPC partition is deployed, the software stack usually needs to be
-rebuilt from a known list of EasyBuild easyconfigs. That list often differs by
-CPU generation, CPU vendor, operating system, partition policy, and whether the
-partition has GPUs.
+built from a known list of EasyBuild easyconfigs. That list often differs by CPU
+generation, CPU vendor, operating system, partition policy, and whether GPUs are
+installed.
 
 `ebstack` lets you keep that intent in one YAML file:
 
-- which modules should be installed everywhere
+- which modules should be installed on every partition
 - which modules should be installed only on Intel, AMD, or GPU partitions
-- which EasyBuild options belong to those module groups
-- which Slurm defaults should be used for a given CPU architecture
-- where EasyBuild job logs should be written
+- which EasyBuild options belong with those module groups
+- which Slurm defaults should be used for each CPU architecture
+- where EasyBuild job logs should be written and checked
 
-The main use case is tracking the modules you want installed on new HPC
-partitions, then installing the full selected list with a short command sequence.
-For example, one partition can use an Intel CPU architecture and a CPU-only
-stack, while another can use an AMD GPU stack with CUDA compute capabilities and
-additional GPU-only modules.
+The main use case is keeping track of the modules you want on a new HPC
+partition. Once the list is in YAML, you select the target CPU architecture and
+run the same sequence of commands to inspect, fetch, install, and check the
+result. One partition can use an Intel CPU-only stack, while another can use an
+AMD GPU stack with CUDA compute capabilities and extra GPU-only modules.
 
 ## Typical Workflow
 
 ### 1. Build The Module And Partition List
 
-Create an `ebstack.yaml` file that describes the partitions you care about and
-the EasyBuild easyconfigs to install.
+Create an `ebstack.yaml` file that describes the partitions and EasyBuild
+easyconfigs you want to install.
 
 ```yaml
 defaults:
@@ -77,22 +78,24 @@ architectures:
 layers:
   common:
     easyconfigs:
-      - zlib-1.3-GCCcore-13.2.0.eb
-      - CMake-3.27.6-GCCcore-13.2.0.eb
+      - zlib-1.3.1-GCCcore-14.3.0.eb
+      - CMake-4.0.3-GCCcore-14.3.0.eb
 
   intel:
     easyconfigs:
-      - impi-2021.10.0-intel-compilers-2023.2.1.eb
+      - impi-2021.16.0-intel-compilers-2025.2.0.eb
 
   amd:
     easyconfigs:
-      - OpenMPI-4.1.6-GCC-13.2.0.eb
+      - OpenMPI-5.0.8-GCC-14.3.0.eb
 
   gpu:
     easyconfigs:
-      - CUDA-12.2.0.eb
+      - CUDA-12.9.1.eb
+      - GPAW-25.7.0-foss-2025b-CUDA-12.9.1-ASE-3.28.0.eb
     options:
       - --accept-eula-for=CUDA
+      - --from-pr=25600
 ```
 
 Select the target architecture with `CPU_ARCH`. The value must match an entry
@@ -102,6 +105,8 @@ under `architectures`.
 export EBSTACK_CONFIG=./ebstack.yaml
 export CPU_ARCH=zen4_gpu_el9
 ```
+
+The modules in `common` are included on every selected stack.
 
 ### 2. Inspect The Resolved Stack
 
@@ -120,7 +125,8 @@ ebstack show-config --only amd
 ebstack show-config --only gpu
 ```
 
-`--only` accepts `intel`, `amd`, or `gpu`. Without `--only`, `ebstack` selects
+`--only` accepts `intel`, `amd`, or `gpu`. For example, `--only intel`
+selects the `common` and `intel` layers. Without `--only`, `ebstack` selects
 `common` plus the CPU vendor layer, and also `gpu` when the architecture is a
 GPU stack.
 
@@ -139,7 +145,10 @@ ebstack fetch-sources
 ```
 
 `fetch-sources` first asks EasyBuild which modules are missing, then runs
-EasyBuild with `--fetch-all` for the missing easyconfigs and dependencies.
+EasyBuild with `--fetch-all` for the missing easyconfigs and dependencies. This
+can take a while because it tries to download sources for all selected modules.
+If a download fails, EasyBuild continues with the next module. Check the output
+afterwards to see whether any sources need to be downloaded manually.
 
 ### 5. Submit The Install Jobs
 
@@ -166,9 +175,12 @@ ebstack check-logs --since 5d
 ebstack check-logs --since "2026-09-14 12:00" --show-success
 ```
 
-By default, `check-logs` prints failed and unknown builds. It exits with status
-`1` if any failed or unknown logs are found. Use `--show-success` to include
-successful builds in the report.
+By default, `check-logs` prints failed builds and unknown builds. Failed usually
+means EasyBuild reported an error; inspect the EasyBuild log for the details.
+Unknown usually means the Slurm job did not produce a recognizable EasyBuild
+success or failure line. The command exits with status `1` if any failed or
+unknown logs are found. Use `--show-success` to include successful builds in the
+report.
 
 ### Other Useful Commands
 
@@ -186,31 +198,19 @@ Runs EasyBuild locally without submitting Slurm jobs.
 
 ## Installation
 
-Install from the repository with `uv`:
+Install from the repository with pip:
 
 ```bash
 git clone <repo-url> ebstack
 cd ebstack
-uv sync
-uv run ebstack --help
+python -m pip install .
+ebstack --help
 ```
 
-If you use `direnv`, allow the repository environment:
+For an editable checkout:
 
 ```bash
-direnv allow
-```
-
-For an editable developer install:
-
-```bash
-uv pip install -e .
-```
-
-For a user-level command install from a checkout:
-
-```bash
-uv tool install .
+python -m pip install -e .
 ```
 
 Runtime requirements:
@@ -375,7 +375,7 @@ architectures:
 layers:
   common:
     easyconfigs:
-      - Example-1.0-GCCcore-13.2.0.eb
+      - Example-1.0-GCCcore-14.3.0.eb
     options:
       - --accept-eula-for=Example
 
@@ -498,6 +498,11 @@ commands that support it.
 If a layer option contains `--from-pr=<PR>`, `ebstack` fetches that EasyBuild
 easyconfigs pull request, materializes changed files under a cache directory,
 and adds them as EasyBuild robot overlays.
+
+PR overlays are passed to EasyBuild with a trailing colon, for example
+`--robot=<overlay>:`. In EasyBuild, that means the overlay is prepended while the
+existing robot search path, including `EASYBUILD_ROBOT_PATHS`, is still used
+afterwards.
 
 The default easyconfigs repository is:
 

@@ -236,5 +236,5 @@ def merged_easybuild_options(
 
 def build_robot_options(robot_overlays: tuple[Path, ...]) -> list[str]:
     if robot_overlays:
-        return ["--robot=" + ":".join(str(path) for path in robot_overlays)]
+        return ["--robot=" + ":".join(str(path) for path in robot_overlays) + ":"]
     return ["--robot"]

@@ -1,6 +1,7 @@
 from typer.testing import CliRunner
 
 from ebstack.cli import app, parse_since_epoch
+from ebstack.resolve import build_robot_options
 
 
 def write_config(tmp_path):
@@ -33,6 +34,19 @@ def test_parse_since_epoch_accepts_relative_days() -> None:
     after = parse_since_epoch("1d")
 
     assert after >= before
+
+
+def test_robot_options_keep_easybuild_robot_paths_without_overlays(monkeypatch) -> None:
+    monkeypatch.setenv("EASYBUILD_ROBOT_PATHS", "/existing/a:/existing/b")
+
+    assert build_robot_options(()) == ["--robot"]
+
+
+def test_robot_options_prepend_pr_overlays_with_trailing_colon(monkeypatch, tmp_path) -> None:
+    overlay = tmp_path / "overlay" / "easybuild" / "easyconfigs"
+    monkeypatch.setenv("EASYBUILD_ROBOT_PATHS", "/existing/a:/existing/b")
+
+    assert build_robot_options((overlay,)) == ["--robot=" + str(overlay) + ":"]
 
 
 def test_check_logs_reports_failed_and_unknown_logs(tmp_path) -> None:
