@@ -1,7 +1,8 @@
 from typer.testing import CliRunner
 
-from ebstack.cli import app, parse_since_epoch
-from ebstack.resolve import build_robot_options
+from ebstack.cli import CommonArgs, app, parse_since_epoch, to_cli_options
+from ebstack.models import Architecture, StackConfig
+from ebstack.resolve import build_robot_options, merge_jobs
 
 
 def write_config(tmp_path):
@@ -34,6 +35,62 @@ def test_parse_since_epoch_accepts_relative_days() -> None:
     after = parse_since_epoch("1d")
 
     assert after >= before
+
+
+def test_to_cli_options_uses_registered_sbatch_and_easybuild_options() -> None:
+    options = to_cli_options(
+        CommonArgs(
+            only="gpu",
+            partition="gpu-build",
+            mem="128G",
+            sbatch=["constraint=zen4"],
+            job_cores=16,
+            job_max_walltime=12,
+        )
+    )
+
+    assert options.only == "gpu"
+    assert options.sbatch == [
+        ("PARTITION", "gpu-build"),
+        ("MEM_PER_NODE", "128G"),
+        ("CONSTRAINT", "zen4"),
+    ]
+    assert options.easybuild == [
+        ("--job-cores", "16"),
+        ("--job-max-walltime", "12"),
+    ]
+
+
+def test_merge_jobs_uses_registered_job_targets(tmp_path) -> None:
+    config = StackConfig(
+        path=tmp_path / "ebstack.yaml",
+        log_root=tmp_path / "logs",
+        defaults_jobs={
+            "partition": "default-build",
+            "mem": "64G",
+            "job_cores": "8",
+        },
+        architectures={},
+        layers={},
+    )
+    architecture = Architecture(
+        name="zen4",
+        cpu_vendor="amd",
+        stack="cpu",
+        cuda_compute_capabilities=(),
+        jobs={"partition": "zen4-build", "job_max_walltime": "12"},
+    )
+
+    jobs = merge_jobs(config, architecture)
+
+    assert jobs.sbatch == (
+        ("PARTITION", "zen4-build"),
+        ("MEM_PER_NODE", "64G"),
+    )
+    assert jobs.easybuild == (
+        ("--job-cores", "8"),
+        ("--job-max-walltime", "12"),
+    )
 
 
 def test_robot_options_keep_easybuild_robot_paths_without_overlays(monkeypatch) -> None:

@@ -103,6 +103,33 @@ class CommonArgs:
     job_max_walltime: int | None = None
 
 
+@dataclass(frozen=True)
+class SbatchCliOption:
+    arg_name: str
+    sbatch_name: str
+
+
+@dataclass(frozen=True)
+class EasyBuildCliOption:
+    arg_name: str
+    option_name: str
+
+
+SBATCH_CLI_OPTIONS = (
+    SbatchCliOption("partition", "PARTITION"),
+    SbatchCliOption("gres", "GRES"),
+    SbatchCliOption("account", "ACCOUNT"),
+    SbatchCliOption("qos", "QOS"),
+    SbatchCliOption("mem", "MEM_PER_NODE"),
+    SbatchCliOption("mem_per_cpu", "MEM_PER_CPU"),
+    SbatchCliOption("mem_per_gpu", "MEM_PER_GPU"),
+)
+EASYBUILD_CLI_OPTIONS = (
+    EasyBuildCliOption("job_cores", "--job-cores"),
+    EasyBuildCliOption("job_max_walltime", "--job-max-walltime"),
+)
+
+
 @app.callback()
 def main(
     ctx: typer.Context,
@@ -120,16 +147,16 @@ def main(
 
 def common_args(
     only: str | None,
-    partition: str | None,
-    gres: str | None,
-    account: str | None,
-    qos: str | None,
-    mem: str | None,
-    mem_per_cpu: str | None,
-    mem_per_gpu: str | None,
-    sbatch: list[str] | None,
-    job_cores: int | None,
-    job_max_walltime: int | None,
+    partition: str | None = None,
+    gres: str | None = None,
+    account: str | None = None,
+    qos: str | None = None,
+    mem: str | None = None,
+    mem_per_cpu: str | None = None,
+    mem_per_gpu: str | None = None,
+    sbatch: list[str] | None = None,
+    job_cores: int | None = None,
+    job_max_walltime: int | None = None,
 ) -> CommonArgs:
     return CommonArgs(
         only=only,
@@ -147,46 +174,25 @@ def common_args(
 
 
 def only_args(only: str | None) -> CommonArgs:
-    return common_args(
-        only,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    )
+    return common_args(only)
 
 
 def to_cli_options(args: CommonArgs) -> CliOptions:
     options = CliOptions(only=args.only)
 
-    if args.partition is not None:
-        add_sbatch_option(options, "PARTITION", args.partition)
-    if args.gres is not None:
-        add_sbatch_option(options, "GRES", args.gres)
-    if args.account is not None:
-        add_sbatch_option(options, "ACCOUNT", args.account)
-    if args.qos is not None:
-        add_sbatch_option(options, "QOS", args.qos)
-    if args.mem is not None:
-        add_sbatch_option(options, "MEM_PER_NODE", args.mem)
-    if args.mem_per_cpu is not None:
-        add_sbatch_option(options, "MEM_PER_CPU", args.mem_per_cpu)
-    if args.mem_per_gpu is not None:
-        add_sbatch_option(options, "MEM_PER_GPU", args.mem_per_gpu)
+    for option_def in SBATCH_CLI_OPTIONS:
+        value = getattr(args, option_def.arg_name)
+        if value is not None:
+            add_sbatch_option(options, option_def.sbatch_name, value)
+
     for spec in args.sbatch or []:
         name, value = parse_sbatch_spec(spec)
         add_sbatch_option(options, name, value)
 
-    if args.job_cores is not None:
-        add_positive_int_option(options, "--job-cores", args.job_cores)
-    if args.job_max_walltime is not None:
-        add_positive_int_option(options, "--job-max-walltime", args.job_max_walltime)
+    for option_def in EASYBUILD_CLI_OPTIONS:
+        value = getattr(args, option_def.arg_name)
+        if value is not None:
+            add_positive_int_option(options, option_def.option_name, value)
 
     return options
 

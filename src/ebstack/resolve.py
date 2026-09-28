@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .errors import EbstackError
-from .models import Architecture, ResolvedStack, StackConfig
+from .models import JOB_KEY_TARGETS, Architecture, ResolvedStack, StackConfig
 
 CONTROLLED_SBATCH = {
     "DEPENDENCY",
@@ -77,26 +77,16 @@ def merge_jobs(config: StackConfig, architecture: Architecture) -> JobDefaults:
     sbatch: list[tuple[str, str]] = []
     easybuild: list[tuple[str, str]] = []
     for key, value in jobs.items():
-        if key == "job_cores":
-            easybuild.append(("--job-cores", value))
-        elif key == "job_max_walltime":
-            easybuild.append(("--job-max-walltime", value))
-        elif key == "partition":
-            sbatch.append(("PARTITION", value))
-        elif key == "gres":
-            sbatch.append(("GRES", value))
-        elif key == "account":
-            sbatch.append(("ACCOUNT", value))
-        elif key == "qos":
-            sbatch.append(("QOS", value))
-        elif key == "mem":
-            sbatch.append(("MEM_PER_NODE", value))
-        elif key == "mem_per_cpu":
-            sbatch.append(("MEM_PER_CPU", value))
-        elif key == "mem_per_gpu":
-            sbatch.append(("MEM_PER_GPU", value))
-        else:
+        target = JOB_KEY_TARGETS.get(key)
+        if target is None:
             raise EbstackError(f"Internal error: unknown job default '{key}'")
+        target_type, target_name = target
+        if target_type == "sbatch":
+            sbatch.append((target_name, value))
+        elif target_type == "easybuild":
+            easybuild.append((target_name, value))
+        else:
+            raise EbstackError(f"Internal error: unknown job target '{target_type}'")
 
     return JobDefaults(tuple(sbatch), tuple(easybuild))
 

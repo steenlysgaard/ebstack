@@ -7,17 +7,18 @@ from pathlib import Path
 VALID_LAYERS = {"common", "intel", "amd", "gpu"}
 VALID_CPU_VENDORS = {"intel", "amd"}
 VALID_STACKS = {"cpu", "gpu"}
-VALID_JOB_KEYS = {
-    "account",
-    "gres",
-    "job_cores",
-    "job_max_walltime",
-    "mem",
-    "mem_per_cpu",
-    "mem_per_gpu",
-    "partition",
-    "qos",
+JOB_KEY_TARGETS = {
+    "account": ("sbatch", "ACCOUNT"),
+    "gres": ("sbatch", "GRES"),
+    "job_cores": ("easybuild", "--job-cores"),
+    "job_max_walltime": ("easybuild", "--job-max-walltime"),
+    "mem": ("sbatch", "MEM_PER_NODE"),
+    "mem_per_cpu": ("sbatch", "MEM_PER_CPU"),
+    "mem_per_gpu": ("sbatch", "MEM_PER_GPU"),
+    "partition": ("sbatch", "PARTITION"),
+    "qos": ("sbatch", "QOS"),
 }
+VALID_JOB_KEYS = set(JOB_KEY_TARGETS)
 
 
 @dataclass(frozen=True)
