@@ -99,7 +99,9 @@ def test_robot_options_keep_easybuild_robot_paths_without_overlays(monkeypatch) 
     assert build_robot_options(()) == ["--robot"]
 
 
-def test_robot_options_prepend_pr_overlays_with_trailing_colon(monkeypatch, tmp_path) -> None:
+def test_robot_options_prepend_pr_overlays_with_trailing_colon(
+    monkeypatch, tmp_path
+) -> None:
     overlay = tmp_path / "overlay" / "easybuild" / "easyconfigs"
     monkeypatch.setenv("EASYBUILD_ROBOT_PATHS", "/existing/a:/existing/b")
 
@@ -110,7 +112,9 @@ def test_check_logs_reports_failed_and_unknown_logs(tmp_path) -> None:
     config_path = write_config(tmp_path)
     log_dir = tmp_path / "logs" / "skylake_el9"
     log_dir.mkdir(parents=True)
-    (log_dir / "zlib-1.3-123.out").write_text("* [SUCCESS] zlib-1.3\n", encoding="utf-8")
+    (log_dir / "zlib-1.3-123.out").write_text(
+        "* [SUCCESS] zlib-1.3\n", encoding="utf-8"
+    )
     (log_dir / "hdf5-1.14-456.out").write_text("Build failed\n", encoding="utf-8")
     (log_dir / "openmpi-789.log").write_text("still running\n", encoding="utf-8")
 
@@ -128,11 +132,20 @@ def test_check_logs_can_show_successful_logs(tmp_path) -> None:
     config_path = write_config(tmp_path)
     log_dir = tmp_path / "logs" / "skylake_el9"
     log_dir.mkdir(parents=True)
-    (log_dir / "zlib-1.3-123.out").write_text("* [SUCCESS] zlib-1.3\n", encoding="utf-8")
+    (log_dir / "zlib-1.3-123.out").write_text(
+        "* [SUCCESS] zlib-1.3\n", encoding="utf-8"
+    )
 
     result = CliRunner().invoke(
         app,
-        ["--config", str(config_path), "check-logs", "--arch", "skylake_el9", "--show-success"],
+        [
+            "--config",
+            str(config_path),
+            "check-logs",
+            "--arch",
+            "skylake_el9",
+            "--show-success",
+        ],
     )
 
     assert result.exit_code == 0

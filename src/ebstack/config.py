@@ -9,13 +9,13 @@ import yaml
 
 from .errors import EbstackError
 from .models import (
-    Architecture,
-    Layer,
-    StackConfig,
     VALID_CPU_VENDORS,
     VALID_JOB_KEYS,
     VALID_LAYERS,
     VALID_STACKS,
+    Architecture,
+    Layer,
+    StackConfig,
 )
 
 VALID_TOP_LEVEL = {"defaults", "architectures", "layers"}
@@ -115,13 +115,19 @@ def _load_log_root(defaults: dict[str, Any], config_path: Path) -> Path:
     paths = _mapping(defaults.get("paths"), "defaults.paths")
     unknown_paths = set(paths) - VALID_PATH_KEYS
     if unknown_paths:
-        _fail(f"Unknown path key(s) in defaults.paths: {', '.join(sorted(unknown_paths))}")
+        _fail(
+            f"Unknown path key(s) in defaults.paths: {', '.join(sorted(unknown_paths))}"
+        )
 
     override = os.environ.get("EBSTACK_LOG_ROOT")
     if override:
         return _path_value(override, "EBSTACK_LOG_ROOT", config_dir=config_path.parent)
 
-    return _path_value(paths.get("log_root", "logs"), "defaults.paths.log_root", config_dir=config_path.parent)
+    return _path_value(
+        paths.get("log_root", "logs"),
+        "defaults.paths.log_root",
+        config_dir=config_path.parent,
+    )
 
 
 def _load_architectures(data: dict[str, Any]) -> dict[str, Architecture]:
@@ -195,7 +201,9 @@ def _load_layers(data: dict[str, Any]) -> dict[str, Layer]:
             easyconfigs=_string_list(
                 layer_data.get("easyconfigs", []), f"layers.{layer}.easyconfigs"
             ),
-            options=_string_list(layer_data.get("options", []), f"layers.{layer}.options"),
+            options=_string_list(
+                layer_data.get("options", []), f"layers.{layer}.options"
+            ),
         )
 
     return layers

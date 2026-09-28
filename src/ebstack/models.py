@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 VALID_LAYERS = {"common", "intel", "amd", "gpu"}
 VALID_CPU_VENDORS = {"intel", "amd"}
 VALID_STACKS = {"cpu", "gpu"}

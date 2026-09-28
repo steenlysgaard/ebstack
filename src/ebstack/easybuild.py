@@ -33,7 +33,9 @@ def missing_command(stack: ResolvedStack) -> list[str]:
     ]
 
 
-def fetch_command(stack: ResolvedStack, easyconfigs: tuple[str, ...] | None = None) -> list[str]:
+def fetch_command(
+    stack: ResolvedStack, easyconfigs: tuple[str, ...] | None = None
+) -> list[str]:
     selected = easyconfigs if easyconfigs is not None else stack.easyconfigs
     return [
         "eb",
@@ -114,4 +116,3 @@ def collect_missing(stack: ResolvedStack) -> tuple[tuple[str, ...], tuple[str, .
             missing_lines.append(line)
 
     return tuple(missing_paths), tuple(missing_lines)
-

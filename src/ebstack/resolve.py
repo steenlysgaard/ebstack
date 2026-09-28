@@ -37,7 +37,9 @@ def add_sbatch_option(
 ) -> None:
     normalized = normalize_sbatch_name(name)
     if normalized in CONTROLLED_SBATCH:
-        raise EbstackError(f"SBATCH_{normalized} is controlled by EasyBuild's Slurm backend")
+        raise EbstackError(
+            f"SBATCH_{normalized} is controlled by EasyBuild's Slurm backend"
+        )
     if not value:
         raise EbstackError(f"Empty value for SBATCH_{normalized}")
     options.sbatch.append((normalized, value))
@@ -54,8 +56,7 @@ def add_positive_int_option(
 
 def normalize_sbatch_name(name: str) -> str:
     normalized = name.upper().replace("-", "_")
-    if normalized.startswith("SBATCH_"):
-        normalized = normalized[len("SBATCH_") :]
+    normalized = normalized.removeprefix("SBATCH_")
     if normalized == "MEM":
         normalized = "MEM_PER_NODE"
     if not normalized.replace("_", "").isalnum():

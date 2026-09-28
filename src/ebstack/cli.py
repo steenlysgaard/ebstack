@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import datetime as dt
 import os
 import re
 import shlex
-import time
 from dataclasses import dataclass
-import datetime as dt
 from functools import wraps
 from pathlib import Path
 from typing import Annotated
@@ -45,18 +44,28 @@ OnlyOption = Annotated[
     str | None,
     typer.Option("--only", help="Restrict run to common plus one of: amd, gpu, intel."),
 ]
-PartitionOption = Annotated[str | None, typer.Option("--partition", help="Slurm partition.")]
-GresOption = Annotated[str | None, typer.Option("--gres", help="Slurm GRES specification.")]
+PartitionOption = Annotated[
+    str | None, typer.Option("--partition", help="Slurm partition.")
+]
+GresOption = Annotated[
+    str | None, typer.Option("--gres", help="Slurm GRES specification.")
+]
 AccountOption = Annotated[str | None, typer.Option("--account", help="Slurm account.")]
 QosOption = Annotated[str | None, typer.Option("--qos", help="Slurm QOS.")]
 MemOption = Annotated[str | None, typer.Option("--mem", help="Slurm memory per node.")]
-MemPerCpuOption = Annotated[str | None, typer.Option("--mem-per-cpu", help="Slurm memory per CPU.")]
-MemPerGpuOption = Annotated[str | None, typer.Option("--mem-per-gpu", help="Slurm memory per GPU.")]
+MemPerCpuOption = Annotated[
+    str | None, typer.Option("--mem-per-cpu", help="Slurm memory per CPU.")
+]
+MemPerGpuOption = Annotated[
+    str | None, typer.Option("--mem-per-gpu", help="Slurm memory per GPU.")
+]
 SbatchOption = Annotated[
     list[str] | None,
     typer.Option("--sbatch", help="Generic Slurm NAME=VALUE environment override."),
 ]
-JobCoresOption = Annotated[int | None, typer.Option("--job-cores", help="EasyBuild job cores.")]
+JobCoresOption = Annotated[
+    int | None, typer.Option("--job-cores", help="EasyBuild job cores.")
+]
 JobWalltimeOption = Annotated[
     int | None,
     typer.Option("--job-max-walltime", help="EasyBuild max job walltime in hours."),
@@ -79,7 +88,9 @@ LOG_FAILURE_PATTERN = re.compile(
     re.MULTILINE,
 )
 LOG_SUCCESS_PATTERN = re.compile(r"^\s*\* \[SUCCESS\]|Build succeeded", re.MULTILINE)
-LOG_SUMMARY_PATTERN = re.compile(r"^\s*\* \[(SUCCESS|FAILED|SKIPPED)\] (.*)$", re.MULTILINE)
+LOG_SUMMARY_PATTERN = re.compile(
+    r"^\s*\* \[(SUCCESS|FAILED|SKIPPED)\] (.*)$", re.MULTILINE
+)
 ARCH_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -206,13 +217,14 @@ def resolve_for_command(
     state = require_state(ctx)
     cpu_arch = require_cpu_arch()
     config = load_stack_config(state.config_path)
-    stack = resolve_stack(config=config, cpu_arch=cpu_arch, cli_options=to_cli_options(args))
+    stack = resolve_stack(
+        config=config, cpu_arch=cpu_arch, cli_options=to_cli_options(args)
+    )
 
     if materialize_prs and stack.easyconfig_prs:
         repo_url = os.environ.get("EASYCONFIGS_REPO_URL", DEFAULT_REPO_URL)
         err_console.print(
-            "Checking out EasyBuild easyconfig PRs: "
-            f"{', '.join(stack.easyconfig_prs)}"
+            f"Checking out EasyBuild easyconfig PRs: {', '.join(stack.easyconfig_prs)}"
         )
         overlays = materialize_easyconfigs_prs(stack.easyconfig_prs, repo_url=repo_url)
         stack = resolve_stack(
@@ -263,9 +275,15 @@ def print_config(stack, *, command: list[str], label: str) -> None:
         ("CPU vendor", stack.architecture.cpu_vendor),
         ("Stack", stack.architecture.stack),
         ("Layers", " ".join(stack.layers)),
-        ("CUDA compute capabilities", ",".join(stack.architecture.cuda_compute_capabilities) or "none"),
+        (
+            "CUDA compute capabilities",
+            ",".join(stack.architecture.cuda_compute_capabilities) or "none",
+        ),
         ("Easyconfigs", str(len(stack.easyconfigs))),
-        ("Easyconfigs PRs", " ".join(stack.easyconfig_prs) if stack.easyconfig_prs else "none"),
+        (
+            "Easyconfigs PRs",
+            " ".join(stack.easyconfig_prs) if stack.easyconfig_prs else "none",
+        ),
         ("Execution", label),
     ]
     table = Table(show_header=False, box=None, padding=(0, 2))
@@ -274,16 +292,24 @@ def print_config(stack, *, command: list[str], label: str) -> None:
     console.print(table)
 
     print_items("Easyconfigs", stack.easyconfigs)
-    display_options = [*stack.options, *stack.cuda_options, *stack.cli_easybuild_options]
+    display_options = [
+        *stack.options,
+        *stack.cuda_options,
+        *stack.cli_easybuild_options,
+    ]
     print_items("EasyBuild options", tuple(display_options))
-    print_items("Easyconfig PR overlays", tuple(str(path) for path in stack.robot_overlays))
+    print_items(
+        "Easyconfig PR overlays", tuple(str(path) for path in stack.robot_overlays)
+    )
     print_items("Slurm environment", stack.sbatch_env)
     console.print("\nEasyBuild command:")
     console.print(f"  {shell_command(command)}")
 
 
 def job_log_dir(stack, timestamp: str | None = None) -> Path:
-    selected_timestamp = timestamp or dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    selected_timestamp = timestamp or dt.datetime.now().astimezone().strftime(
+        "%Y%m%d-%H%M%S"
+    )
     return stack.log_root / stack.cpu_arch / selected_timestamp
 
 
@@ -296,7 +322,9 @@ def print_items(title: str, items: tuple[str, ...]) -> None:
 def parse_since_epoch(value: str) -> float:
     match = re.fullmatch(r"([1-9][0-9]*)d", value)
     if match:
-        return (dt.datetime.now() - dt.timedelta(days=int(match.group(1)))).timestamp()
+        return (
+            dt.datetime.now().astimezone() - dt.timedelta(days=int(match.group(1)))
+        ).timestamp()
 
     for date_format in (
         "%Y-%m-%d",
@@ -306,10 +334,10 @@ def parse_since_epoch(value: str) -> float:
         "%Y-%m-%dT%H:%M:%S",
     ):
         try:
-            parsed = dt.datetime.strptime(value, date_format)
+            parsed = dt.datetime.strptime(value, date_format).astimezone()
         except ValueError:
             continue
-        return time.mktime(parsed.timetuple())
+        return parsed.timestamp()
 
     raise EbstackError(f"Could not parse --since value '{value}'")
 
@@ -375,7 +403,9 @@ def show_config(
     ctx: typer.Context,
     materialize_prs: Annotated[
         bool,
-        typer.Option("--materialize-prs", help="Fetch PR overlays before printing command."),
+        typer.Option(
+            "--materialize-prs", help="Fetch PR overlays before printing command."
+        ),
     ] = False,
     only: OnlyOption = None,
     partition: PartitionOption = None,
@@ -431,7 +461,9 @@ def missing(
     err_console.print("Checking installed modules with EasyBuild dry run...")
     missing_paths, missing_lines = collect_missing(stack)
     if not missing_paths:
-        console.print("All selected easyconfigs and dependencies are already installed.")
+        console.print(
+            "All selected easyconfigs and dependencies are already installed."
+        )
         return
     for line in missing_lines:
         console.print(line)
@@ -448,7 +480,9 @@ def fetch_sources(
     console.print("Planning source fetches from module-aware EasyBuild dry run...")
     missing_paths, _ = collect_missing(stack)
     if not missing_paths:
-        console.print("All selected easyconfigs and dependencies are already installed; nothing to fetch.")
+        console.print(
+            "All selected easyconfigs and dependencies are already installed; nothing to fetch."
+        )
         return
     console.print("Fetching sources for missing easyconfigs and dependencies:")
     for path in missing_paths:
@@ -476,7 +510,9 @@ def check_logs(
             raise EbstackError(f"Invalid --arch value '{arch}'")
         search_root = log_root / arch
         if not search_root.is_dir():
-            raise EbstackError(f"Log directory does not exist for --arch '{arch}': {search_root}")
+            raise EbstackError(
+                f"Log directory does not exist for --arch '{arch}': {search_root}"
+            )
     else:
         search_root = log_root
 
@@ -562,7 +598,9 @@ def install(
     selected_job_log_dir = job_log_dir(stack)
     selected_job_log_dir.mkdir(parents=True, exist_ok=True)
     exit_with_status(
-        run_command(install_command(stack, selected_job_log_dir), sbatch_env=stack.sbatch_env)
+        run_command(
+            install_command(stack, selected_job_log_dir), sbatch_env=stack.sbatch_env
+        )
     )
 
 

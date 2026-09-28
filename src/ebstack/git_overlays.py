@@ -25,10 +25,14 @@ def materialize_easyconfigs_prs(
         return ()
 
     if not (repo_dir / ".git").is_dir():
-        run_git(["clone", "--filter=blob:none", "--no-checkout", repo_url, str(repo_dir)])
+        run_git(
+            ["clone", "--filter=blob:none", "--no-checkout", repo_url, str(repo_dir)]
+        )
 
     overlays: list[Path] = []
-    run_git(["-C", str(repo_dir), "fetch", "origin", "+develop:refs/remotes/origin/develop"])
+    run_git(
+        ["-C", str(repo_dir), "fetch", "origin", "+develop:refs/remotes/origin/develop"]
+    )
 
     for pr in prs:
         pr_ref = f"refs/pr/{pr}"
@@ -53,12 +57,16 @@ def materialize_easyconfigs_prs(
             ]
         ).splitlines()
         if not changed:
-            raise EbstackError(f"PR #{pr} does not change files under easybuild/easyconfigs")
+            raise EbstackError(
+                f"PR #{pr} does not change files under easybuild/easyconfigs"
+            )
 
         for changed_file in changed:
             target = overlay / changed_file
             target.parent.mkdir(parents=True, exist_ok=True)
-            content = git_stdout(["-C", str(repo_dir), "show", f"{pr_ref}:{changed_file}"])
+            content = git_stdout(
+                ["-C", str(repo_dir), "show", f"{pr_ref}:{changed_file}"]
+            )
             target.write_text(content, encoding="utf-8")
 
         overlays.append(overlay_easyconfigs)
@@ -68,7 +76,9 @@ def materialize_easyconfigs_prs(
 
 def run_git(args: list[str]) -> None:
     try:
-        completed = subprocess.run(["git", *args], text=True, capture_output=True, check=False)
+        completed = subprocess.run(
+            ["git", *args], text=True, capture_output=True, check=False
+        )
     except OSError as err:
         raise EbstackError(f"Failed to run git: {err}") from err
     if completed.returncode != 0:
@@ -78,7 +88,9 @@ def run_git(args: list[str]) -> None:
 
 def git_stdout(args: list[str]) -> str:
     try:
-        completed = subprocess.run(["git", *args], text=True, capture_output=True, check=False)
+        completed = subprocess.run(
+            ["git", *args], text=True, capture_output=True, check=False
+        )
     except OSError as err:
         raise EbstackError(f"Failed to run git: {err}") from err
     if completed.returncode != 0:
