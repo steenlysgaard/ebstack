@@ -266,13 +266,14 @@ Options:
 - `--mem-per-cpu TEXT`: override Slurm memory per CPU.
 - `--mem-per-gpu TEXT`: override Slurm memory per GPU.
 - `--sbatch NAME=VALUE`: set an arbitrary Slurm environment override. May be repeated.
+- `--no NAME`: remove an inherited job option such as `gres`, `mem`, or `job_cores`. May be repeated.
 - `--job-cores INT`: override EasyBuild job cores.
 - `--job-max-walltime INT`: override EasyBuild max job walltime in hours.
 
 ### `dry-run`
 
 ```bash
-ebstack dry-run [--only intel|amd|gpu]
+ebstack dry-run [--only intel|amd|gpu] [--no NAME]
 ```
 
 Runs the resolved EasyBuild command with `--dry-run`.
@@ -280,7 +281,7 @@ Runs the resolved EasyBuild command with `--dry-run`.
 ### `missing`
 
 ```bash
-ebstack missing [--only intel|amd|gpu]
+ebstack missing [--only intel|amd|gpu] [--no NAME]
 ```
 
 Runs a module-aware EasyBuild dry run and prints missing entries.
@@ -288,7 +289,7 @@ Runs a module-aware EasyBuild dry run and prints missing entries.
 ### `fetch-sources`
 
 ```bash
-ebstack fetch-sources [--only intel|amd|gpu]
+ebstack fetch-sources [--only intel|amd|gpu] [--no NAME]
 ```
 
 Finds missing easyconfigs and dependencies, then fetches their sources with
@@ -313,13 +314,14 @@ Options:
 - `--mem-per-cpu TEXT`
 - `--mem-per-gpu TEXT`
 - `--sbatch NAME=VALUE`
+- `--no NAME`
 - `--job-cores INT`
 - `--job-max-walltime INT`
 
 ### `local`
 
 ```bash
-ebstack local [--only intel|amd|gpu]
+ebstack local [--only intel|amd|gpu] [--no NAME]
 ```
 
 Runs the selected EasyBuild command locally, without Slurm job submission.
@@ -427,6 +429,11 @@ Supported job keys:
 
 `defaults.jobs` applies to every architecture. An architecture-level `jobs`
 mapping overrides defaults for that architecture.
+
+Use `--no NAME` to remove an inherited job option for a single command. For
+example, `--no=gres` removes a configured `gres` value, and `--no=mem` removes a
+configured `mem` value. Names use the same keys as the YAML job keys listed
+above.
 
 Slurm-related values are exported as:
 

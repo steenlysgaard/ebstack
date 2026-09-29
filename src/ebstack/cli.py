@@ -30,6 +30,7 @@ from .resolve import (
     CliOptions,
     add_positive_int_option,
     add_sbatch_option,
+    parse_disabled_job,
     parse_sbatch_spec,
     resolve_stack,
 )
@@ -63,6 +64,10 @@ MemPerGpuOption = Annotated[
 SbatchOption = Annotated[
     list[str] | None,
     typer.Option("--sbatch", help="Generic Slurm NAME=VALUE environment override."),
+]
+NoOption = Annotated[
+    list[str] | None,
+    typer.Option("--no", help="Disable an inherited job option such as gres or mem."),
 ]
 JobCoresOption = Annotated[
     int | None, typer.Option("--job-cores", help="EasyBuild job cores.")
@@ -111,6 +116,7 @@ class CommonArgs:
     mem_per_cpu: str | None = None
     mem_per_gpu: str | None = None
     sbatch: list[str] | None = None
+    no: list[str] | None = None
     job_cores: int | None = None
     job_max_walltime: int | None = None
 
@@ -167,6 +173,7 @@ def common_args(
     mem_per_cpu: str | None = None,
     mem_per_gpu: str | None = None,
     sbatch: list[str] | None = None,
+    no: list[str] | None = None,
     job_cores: int | None = None,
     job_max_walltime: int | None = None,
 ) -> CommonArgs:
@@ -180,17 +187,21 @@ def common_args(
         mem_per_cpu=mem_per_cpu,
         mem_per_gpu=mem_per_gpu,
         sbatch=sbatch,
+        no=no,
         job_cores=job_cores,
         job_max_walltime=job_max_walltime,
     )
 
 
-def only_args(only: str | None) -> CommonArgs:
-    return common_args(only)
+def only_args(only: str | None, no: list[str] | None = None) -> CommonArgs:
+    return common_args(only, no=no)
 
 
 def to_cli_options(args: CommonArgs) -> CliOptions:
-    options = CliOptions(only=args.only)
+    options = CliOptions(
+        only=args.only,
+        disabled_jobs={parse_disabled_job(name) for name in args.no or []},
+    )
 
     for option_def in SBATCH_CLI_OPTIONS:
         value = getattr(args, option_def.arg_name)
@@ -417,6 +428,7 @@ def show_config(
     mem_per_cpu: MemPerCpuOption = None,
     mem_per_gpu: MemPerGpuOption = None,
     sbatch: SbatchOption = None,
+    no: NoOption = None,
     job_cores: JobCoresOption = None,
     job_max_walltime: JobWalltimeOption = None,
 ) -> None:
@@ -430,6 +442,7 @@ def show_config(
         mem_per_cpu,
         mem_per_gpu,
         sbatch,
+        no,
         job_cores,
         job_max_walltime,
     )
@@ -446,8 +459,9 @@ def show_config(
 def dry_run(
     ctx: typer.Context,
     only: OnlyOption = None,
+    no: NoOption = None,
 ) -> None:
-    args = only_args(only)
+    args = only_args(only, no)
     run_resolved_command(ctx, args, dry_run_command)
 
 
@@ -456,8 +470,9 @@ def dry_run(
 def missing(
     ctx: typer.Context,
     only: OnlyOption = None,
+    no: NoOption = None,
 ) -> None:
-    args = only_args(only)
+    args = only_args(only, no)
     stack = resolve_for_command(ctx, args, materialize_prs=True)
     err_console.print("Checking installed modules with EasyBuild dry run...")
     missing_paths, missing_lines = collect_missing(stack)
@@ -475,8 +490,9 @@ def missing(
 def fetch_sources(
     ctx: typer.Context,
     only: OnlyOption = None,
+    no: NoOption = None,
 ) -> None:
-    args = only_args(only)
+    args = only_args(only, no)
     stack = resolve_for_command(ctx, args, materialize_prs=True)
     console.print("Planning source fetches from module-aware EasyBuild dry run...")
     missing_paths, _ = collect_missing(stack)
@@ -579,6 +595,7 @@ def install(
     mem_per_cpu: MemPerCpuOption = None,
     mem_per_gpu: MemPerGpuOption = None,
     sbatch: SbatchOption = None,
+    no: NoOption = None,
     job_cores: JobCoresOption = None,
     job_max_walltime: JobWalltimeOption = None,
 ) -> None:
@@ -592,6 +609,7 @@ def install(
         mem_per_cpu,
         mem_per_gpu,
         sbatch,
+        no,
         job_cores,
         job_max_walltime,
     )
@@ -610,8 +628,9 @@ def install(
 def local(
     ctx: typer.Context,
     only: OnlyOption = None,
+    no: NoOption = None,
 ) -> None:
-    args = only_args(only)
+    args = only_args(only, no)
     run_resolved_command(ctx, args, local_command)
 
 

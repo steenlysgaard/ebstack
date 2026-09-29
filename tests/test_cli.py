@@ -44,12 +44,14 @@ def test_to_cli_options_uses_registered_sbatch_and_easybuild_options() -> None:
             partition="gpu-build",
             mem="128G",
             sbatch=["constraint=zen4"],
+            no=["gres", "mem-per-cpu"],
             job_cores=16,
             job_max_walltime=12,
         )
     )
 
     assert options.only == "gpu"
+    assert options.disabled_jobs == {"gres", "mem_per_cpu"}
     assert options.sbatch == [
         ("PARTITION", "gpu-build"),
         ("MEM_PER_NODE", "128G"),
@@ -81,12 +83,9 @@ def test_merge_jobs_uses_registered_job_targets(tmp_path) -> None:
         jobs={"partition": "zen4-build", "job_max_walltime": "12"},
     )
 
-    jobs = merge_jobs(config, architecture)
+    jobs = merge_jobs(config, architecture, disabled_jobs={"mem"})
 
-    assert jobs.sbatch == (
-        ("PARTITION", "zen4-build"),
-        ("MEM_PER_NODE", "64G"),
-    )
+    assert jobs.sbatch == (("PARTITION", "zen4-build"),)
     assert jobs.easybuild == (
         ("--job-cores", "8"),
         ("--job-max-walltime", "12"),

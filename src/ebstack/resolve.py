@@ -4,7 +4,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .errors import EbstackError
-from .models import JOB_KEY_TARGETS, Architecture, ResolvedStack, StackConfig
+from .models import (
+    JOB_KEY_TARGETS,
+    VALID_JOB_KEYS,
+    Architecture,
+    ResolvedStack,
+    StackConfig,
+)
 
 CONTROLLED_SBATCH = {
     "DEPENDENCY",
@@ -24,6 +30,7 @@ class CliOptions:
     only: str | None = None
     sbatch: list[tuple[str, str]] = field(default_factory=list)
     easybuild: list[tuple[str, str]] = field(default_factory=list)
+    disabled_jobs: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -71,9 +78,22 @@ def parse_sbatch_spec(spec: str) -> tuple[str, str]:
     return normalize_sbatch_name(name), value
 
 
-def merge_jobs(config: StackConfig, architecture: Architecture) -> JobDefaults:
+def parse_disabled_job(name: str) -> str:
+    normalized = name.strip().lower().replace("-", "_")
+    if normalized not in VALID_JOB_KEYS:
+        raise EbstackError("--no expects one of: " + ", ".join(sorted(VALID_JOB_KEYS)))
+    return normalized
+
+
+def merge_jobs(
+    config: StackConfig,
+    architecture: Architecture,
+    disabled_jobs: set[str] | None = None,
+) -> JobDefaults:
     jobs = dict(config.defaults_jobs)
     jobs.update(architecture.jobs)
+    for key in disabled_jobs or set():
+        jobs.pop(key, None)
 
     sbatch: list[tuple[str, str]] = []
     easybuild: list[tuple[str, str]] = []
@@ -121,7 +141,7 @@ def resolve_stack(
             + ",".join(architecture.cuda_compute_capabilities)
         )
 
-    job_defaults = merge_jobs(config, architecture)
+    job_defaults = merge_jobs(config, architecture, cli_options.disabled_jobs)
     sbatch_env = merged_sbatch_env(job_defaults.sbatch, cli_options.sbatch)
     cli_easybuild_options = merged_easybuild_options(
         job_defaults.easybuild, cli_options.easybuild
