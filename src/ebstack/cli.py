@@ -12,6 +12,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from .config import load_stack_config
 from .easybuild import (
@@ -288,7 +289,7 @@ def print_config(stack, *, command: list[str], label: str) -> None:
     ]
     table = Table(show_header=False, box=None, padding=(0, 2))
     for key, value in rows:
-        table.add_row(key, value)
+        table.add_row(key, Text(value))
     console.print(table)
 
     print_items("Easyconfigs", stack.easyconfigs)
@@ -303,7 +304,7 @@ def print_config(stack, *, command: list[str], label: str) -> None:
     )
     print_items("Slurm environment", stack.sbatch_env)
     console.print("\nEasyBuild command:")
-    console.print(f"  {shell_command(command)}")
+    console.print(Text(f"  {shell_command(command)}"))
 
 
 def job_log_dir(stack, timestamp: str | None = None) -> Path:
@@ -316,7 +317,7 @@ def job_log_dir(stack, timestamp: str | None = None) -> Path:
 def print_items(title: str, items: tuple[str, ...]) -> None:
     console.print(f"\n{title}:")
     for item in items:
-        console.print(f"  {item}")
+        console.print(Text(f"  {item}"))
 
 
 def parse_since_epoch(value: str) -> float:
