@@ -115,14 +115,14 @@ def test_existing_lock_paths_uses_easybuild_lock_name(tmp_path) -> None:
         locks_dir=tmp_path / "software" / ".locks",
         installpath_software=tmp_path / "software",
     )
-    lock_path = settings.locks_dir / easybuild_lock_name(
-        settings.installpath_software / "GPAW/25.7.0-foss-2025b-CUDA-12.9.1"
-    )
+    module = "LLVM/20.1.8-GCCcore-14.3.0"
+    lock_name = easybuild_lock_name(settings.installpath_software / module)
+    assert lock_name.endswith("_LLVM_20.1.8-GCCcore-14.3.0.lock")
+
+    lock_path = settings.locks_dir / lock_name
     lock_path.mkdir(parents=True)
 
-    assert existing_lock_paths(("GPAW/25.7.0-foss-2025b-CUDA-12.9.1",), settings) == (
-        lock_path,
-    )
+    assert existing_lock_paths((module,), settings) == (lock_path,)
 
 
 def test_lock_settings_honor_easybuild_prefix(monkeypatch, tmp_path) -> None:

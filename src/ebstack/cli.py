@@ -445,7 +445,7 @@ def lock_settings_from_config(config: StackConfig) -> EasyBuildLockSettings:
 
 
 def easybuild_lock_name(install_dir: Path) -> str:
-    return str(install_dir).replace("/", "_").replace("-", "_") + ".lock"
+    return str(install_dir).replace("/", "_") + ".lock"
 
 
 def module_install_dir(module: str, settings: EasyBuildLockSettings) -> Path:
