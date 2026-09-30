@@ -61,6 +61,12 @@ def add_positive_int_option(
     options.easybuild.append((option, text))
 
 
+def add_easybuild_option(options: CliOptions, value: str) -> None:
+    if not value:
+        raise EbstackError("--eb-option expects a non-empty value")
+    options.easybuild.append((value, ""))
+
+
 def normalize_sbatch_name(name: str) -> str:
     normalized = name.upper().replace("-", "_")
     normalized = normalized.removeprefix("SBATCH_")
@@ -242,7 +248,7 @@ def merged_easybuild_options(
     cli_names = {name for name, _ in cli}
     merged = [(name, value) for name, value in defaults if name not in cli_names]
     merged.extend(cli)
-    return [f"{name}={value}" for name, value in merged]
+    return [f"{name}={value}" if value else name for name, value in merged]
 
 
 def build_robot_options(robot_overlays: tuple[Path, ...]) -> list[str]:

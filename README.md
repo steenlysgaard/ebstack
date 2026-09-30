@@ -196,6 +196,40 @@ ebstack local
 
 Runs EasyBuild locally without submitting Slurm jobs.
 
+### Slurm Job Logs And Temporary EasyBuild Logs
+
+`ebstack install` already passes `--job-output-dir` so Slurm output is written
+under `log_root`. EasyBuild can still write its own temporary log under
+`$TMPDIR` or `/tmp` inside the Slurm job, and that path may be local to the
+compute node and deleted when the job ends.
+
+Two EasyBuild options are useful for this:
+
+- `--logtostdout`: writes the EasyBuild log to standard output so it is captured
+  in the Slurm job output file.
+- `--tmp-logdir=/path/on/shared/filesystem`: writes EasyBuild temporary logs to a
+  persistent shared location instead of node-local temporary storage.
+
+You can add them to a layer:
+
+```yaml
+layers:
+  common:
+    options:
+      - --logtostdout
+      - --tmp-logdir=/path/on/shared/filesystem/eb-tmplogs
+```
+
+If you only choose one, start with `--logtostdout`; it usually makes failed
+Slurm job output self-contained enough for debugging.
+
+For a one-off run, pass these directly to EasyBuild from the command line:
+
+```bash
+ebstack install --eb-option=--logtostdout
+ebstack install --eb-option=--tmp-logdir=/path/on/shared/filesystem/eb-tmplogs
+```
+
 ## Installation
 
 Install from the repository with pip:
@@ -267,13 +301,14 @@ Options:
 - `--mem-per-gpu TEXT`: override Slurm memory per GPU.
 - `--sbatch NAME=VALUE`: set an arbitrary Slurm environment override. May be repeated.
 - `--no NAME`: remove an inherited job option such as `gres`, `mem`, or `job_cores`. May be repeated.
+- `--eb-option TEXT`: pass an additional option through to EasyBuild. May be repeated.
 - `--job-cores INT`: override EasyBuild job cores.
 - `--job-max-walltime INT`: override EasyBuild max job walltime in hours.
 
 ### `dry-run`
 
 ```bash
-ebstack dry-run [--only intel|amd|gpu] [--no NAME]
+ebstack dry-run [--only intel|amd|gpu] [--no NAME] [--eb-option TEXT]
 ```
 
 Runs the resolved EasyBuild command with `--dry-run`.
@@ -281,7 +316,7 @@ Runs the resolved EasyBuild command with `--dry-run`.
 ### `missing`
 
 ```bash
-ebstack missing [--only intel|amd|gpu] [--no NAME]
+ebstack missing [--only intel|amd|gpu] [--no NAME] [--eb-option TEXT]
 ```
 
 Runs a module-aware EasyBuild dry run and prints missing entries.
@@ -289,7 +324,7 @@ Runs a module-aware EasyBuild dry run and prints missing entries.
 ### `fetch-sources`
 
 ```bash
-ebstack fetch-sources [--only intel|amd|gpu] [--no NAME]
+ebstack fetch-sources [--only intel|amd|gpu] [--no NAME] [--eb-option TEXT]
 ```
 
 Finds missing easyconfigs and dependencies, then fetches their sources with
@@ -315,13 +350,14 @@ Options:
 - `--mem-per-gpu TEXT`
 - `--sbatch NAME=VALUE`
 - `--no NAME`
+- `--eb-option TEXT`
 - `--job-cores INT`
 - `--job-max-walltime INT`
 
 ### `local`
 
 ```bash
-ebstack local [--only intel|amd|gpu] [--no NAME]
+ebstack local [--only intel|amd|gpu] [--no NAME] [--eb-option TEXT]
 ```
 
 Runs the selected EasyBuild command locally, without Slurm job submission.

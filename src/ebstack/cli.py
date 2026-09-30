@@ -28,6 +28,7 @@ from .git_overlays import materialize_easyconfigs_prs
 from .models import ResolvedStack
 from .resolve import (
     CliOptions,
+    add_easybuild_option,
     add_positive_int_option,
     add_sbatch_option,
     parse_disabled_job,
@@ -68,6 +69,10 @@ SbatchOption = Annotated[
 NoOption = Annotated[
     list[str] | None,
     typer.Option("--no", help="Disable an inherited job option such as gres or mem."),
+]
+EbOption = Annotated[
+    list[str] | None,
+    typer.Option("--eb-option", help="Pass an additional option through to EasyBuild."),
 ]
 JobCoresOption = Annotated[
     int | None, typer.Option("--job-cores", help="EasyBuild job cores.")
@@ -117,6 +122,7 @@ class CommonArgs:
     mem_per_gpu: str | None = None
     sbatch: list[str] | None = None
     no: list[str] | None = None
+    eb_option: list[str] | None = None
     job_cores: int | None = None
     job_max_walltime: int | None = None
 
@@ -174,6 +180,7 @@ def common_args(
     mem_per_gpu: str | None = None,
     sbatch: list[str] | None = None,
     no: list[str] | None = None,
+    eb_option: list[str] | None = None,
     job_cores: int | None = None,
     job_max_walltime: int | None = None,
 ) -> CommonArgs:
@@ -188,13 +195,18 @@ def common_args(
         mem_per_gpu=mem_per_gpu,
         sbatch=sbatch,
         no=no,
+        eb_option=eb_option,
         job_cores=job_cores,
         job_max_walltime=job_max_walltime,
     )
 
 
-def only_args(only: str | None, no: list[str] | None = None) -> CommonArgs:
-    return common_args(only, no=no)
+def only_args(
+    only: str | None,
+    no: list[str] | None = None,
+    eb_option: list[str] | None = None,
+) -> CommonArgs:
+    return common_args(only, no=no, eb_option=eb_option)
 
 
 def to_cli_options(args: CommonArgs) -> CliOptions:
@@ -216,6 +228,9 @@ def to_cli_options(args: CommonArgs) -> CliOptions:
         value = getattr(args, option_def.arg_name)
         if value is not None:
             add_positive_int_option(options, option_def.option_name, value)
+
+    for value in args.eb_option or []:
+        add_easybuild_option(options, value)
 
     return options
 
@@ -429,6 +444,7 @@ def show_config(
     mem_per_gpu: MemPerGpuOption = None,
     sbatch: SbatchOption = None,
     no: NoOption = None,
+    eb_option: EbOption = None,
     job_cores: JobCoresOption = None,
     job_max_walltime: JobWalltimeOption = None,
 ) -> None:
@@ -443,6 +459,7 @@ def show_config(
         mem_per_gpu,
         sbatch,
         no,
+        eb_option,
         job_cores,
         job_max_walltime,
     )
@@ -460,8 +477,9 @@ def dry_run(
     ctx: typer.Context,
     only: OnlyOption = None,
     no: NoOption = None,
+    eb_option: EbOption = None,
 ) -> None:
-    args = only_args(only, no)
+    args = only_args(only, no, eb_option)
     run_resolved_command(ctx, args, dry_run_command)
 
 
@@ -471,8 +489,9 @@ def missing(
     ctx: typer.Context,
     only: OnlyOption = None,
     no: NoOption = None,
+    eb_option: EbOption = None,
 ) -> None:
-    args = only_args(only, no)
+    args = only_args(only, no, eb_option)
     stack = resolve_for_command(ctx, args, materialize_prs=True)
     err_console.print("Checking installed modules with EasyBuild dry run...")
     missing_paths, missing_lines = collect_missing(stack)
@@ -491,8 +510,9 @@ def fetch_sources(
     ctx: typer.Context,
     only: OnlyOption = None,
     no: NoOption = None,
+    eb_option: EbOption = None,
 ) -> None:
-    args = only_args(only, no)
+    args = only_args(only, no, eb_option)
     stack = resolve_for_command(ctx, args, materialize_prs=True)
     console.print("Planning source fetches from module-aware EasyBuild dry run...")
     missing_paths, _ = collect_missing(stack)
@@ -596,6 +616,7 @@ def install(
     mem_per_gpu: MemPerGpuOption = None,
     sbatch: SbatchOption = None,
     no: NoOption = None,
+    eb_option: EbOption = None,
     job_cores: JobCoresOption = None,
     job_max_walltime: JobWalltimeOption = None,
 ) -> None:
@@ -610,6 +631,7 @@ def install(
         mem_per_gpu,
         sbatch,
         no,
+        eb_option,
         job_cores,
         job_max_walltime,
     )
@@ -629,8 +651,9 @@ def local(
     ctx: typer.Context,
     only: OnlyOption = None,
     no: NoOption = None,
+    eb_option: EbOption = None,
 ) -> None:
-    args = only_args(only, no)
+    args = only_args(only, no, eb_option)
     run_resolved_command(ctx, args, local_command)
 
 

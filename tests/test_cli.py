@@ -2,7 +2,7 @@ from typer.testing import CliRunner
 
 from ebstack.cli import CommonArgs, app, parse_since_epoch, to_cli_options
 from ebstack.models import Architecture, StackConfig
-from ebstack.resolve import build_robot_options, merge_jobs
+from ebstack.resolve import build_robot_options, merge_jobs, merged_easybuild_options
 
 
 def write_config(tmp_path):
@@ -45,6 +45,7 @@ def test_to_cli_options_uses_registered_sbatch_and_easybuild_options() -> None:
             mem="128G",
             sbatch=["constraint=zen4"],
             no=["gres", "mem-per-cpu"],
+            eb_option=["--logtostdout", "--tmp-logdir=/shared/eb-tmplogs"],
             job_cores=16,
             job_max_walltime=12,
         )
@@ -60,6 +61,8 @@ def test_to_cli_options_uses_registered_sbatch_and_easybuild_options() -> None:
     assert options.easybuild == [
         ("--job-cores", "16"),
         ("--job-max-walltime", "12"),
+        ("--logtostdout", ""),
+        ("--tmp-logdir=/shared/eb-tmplogs", ""),
     ]
 
 
@@ -90,6 +93,12 @@ def test_merge_jobs_uses_registered_job_targets(tmp_path) -> None:
         ("--job-cores", "8"),
         ("--job-max-walltime", "12"),
     )
+
+
+def test_merged_easybuild_options_supports_flag_style_options() -> None:
+    assert merged_easybuild_options(
+        (("--job-cores", "8"),), [("--logtostdout", ""), ("--tmp-logdir=/shared", "")]
+    ) == ["--job-cores=8", "--logtostdout", "--tmp-logdir=/shared"]
 
 
 def test_robot_options_keep_easybuild_robot_paths_without_overlays(monkeypatch) -> None:
