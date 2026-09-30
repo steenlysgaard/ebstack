@@ -166,6 +166,10 @@ ebstack install
 Slurm options from the YAML file and CLI overrides are exported as `SBATCH_*`
 environment variables for the EasyBuild Slurm backend.
 
+Before submitting jobs, `install` checks whether EasyBuild locks already exist
+for modules it is about to install. If a lock is found, it prints a warning and
+exits without submitting jobs.
+
 ### 6. Check The Logs
 
 ```bash
@@ -181,6 +185,9 @@ Unknown usually means the Slurm job did not produce a recognizable EasyBuild
 success or failure line. The command exits with status `1` if any failed or
 unknown logs are found. Use `--show-success` to include successful builds in the
 report.
+
+If an unknown job appears to have left an EasyBuild lock behind, `check-logs`
+prints a warning with the matching lock path.
 
 ### Other Useful Commands
 
@@ -337,6 +344,10 @@ ebstack install [OPTIONS]
 ```
 
 Submits the selected EasyBuild stack as Slurm jobs.
+
+Before submission, this command checks for existing EasyBuild locks for modules
+that EasyBuild reports as missing. If any are found, it warns and exits without
+submitting jobs.
 
 Options:
 

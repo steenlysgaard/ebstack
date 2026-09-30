@@ -25,7 +25,7 @@ from .easybuild import (
 )
 from .errors import EbstackError
 from .git_overlays import materialize_easyconfigs_prs
-from .models import ResolvedStack
+from .models import ResolvedStack, StackConfig
 from .resolve import (
     CliOptions,
     add_easybuild_option,
@@ -37,6 +37,8 @@ from .resolve import (
 )
 
 DEFAULT_REPO_URL = "https://github.com/easybuilders/easybuild-easyconfigs.git"
+DEFAULT_EASYBUILD_INSTALLPATH = Path.home() / ".local" / "easybuild"
+DEFAULT_EASYBUILD_SOFTWARE_SUBDIR = "software"
 
 console = Console()
 err_console = Console(stderr=True)
@@ -125,6 +127,12 @@ class CommonArgs:
     eb_option: list[str] | None = None
     job_cores: int | None = None
     job_max_walltime: int | None = None
+
+
+@dataclass(frozen=True)
+class EasyBuildLockSettings:
+    locks_dir: Path
+    installpath_software: Path
 
 
 @dataclass(frozen=True)
@@ -369,6 +377,136 @@ def parse_since_epoch(value: str) -> float:
     raise EbstackError(f"Could not parse --since value '{value}'")
 
 
+def option_value(options: tuple[str, ...], name: str) -> str | None:
+    prefix = name + "="
+    for index, option in enumerate(options):
+        if option.startswith(prefix):
+            return option[len(prefix) :]
+        if option == name and index + 1 < len(options):
+            return options[index + 1]
+    return None
+
+
+def path_from_value(value: str | None, default: Path | None = None) -> Path | None:
+    if value is None:
+        return default
+    path = Path(os.path.expandvars(value)).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    return path
+
+
+def lock_settings_from_options(options: tuple[str, ...]) -> EasyBuildLockSettings:
+    installpath = path_from_value(
+        option_value(options, "--installpath")
+        or os.environ.get("EASYBUILD_INSTALLPATH"),
+        DEFAULT_EASYBUILD_INSTALLPATH,
+    )
+    subdir_software = (
+        option_value(options, "--subdir-software")
+        or os.environ.get("EASYBUILD_SUBDIR_SOFTWARE")
+        or DEFAULT_EASYBUILD_SOFTWARE_SUBDIR
+    )
+    installpath_software = path_from_value(
+        option_value(options, "--installpath-software")
+        or os.environ.get("EASYBUILD_INSTALLPATH_SOFTWARE"),
+        installpath / subdir_software,
+    )
+    locks_dir = path_from_value(
+        option_value(options, "--locks-dir") or os.environ.get("EASYBUILD_LOCKS_DIR"),
+        installpath_software / ".locks",
+    )
+    return EasyBuildLockSettings(
+        locks_dir=locks_dir,
+        installpath_software=installpath_software,
+    )
+
+
+def lock_settings_from_stack(stack: ResolvedStack) -> EasyBuildLockSettings:
+    return lock_settings_from_options(
+        (
+            *stack.options,
+            *stack.cuda_options,
+            *stack.cli_easybuild_options,
+            *stack.robot_options,
+        )
+    )
+
+
+def lock_settings_from_config(config: StackConfig) -> EasyBuildLockSettings:
+    options: list[str] = []
+    for layer in config.layers.values():
+        options.extend(layer.options)
+    return lock_settings_from_options(tuple(options))
+
+
+def easybuild_lock_name(install_dir: Path) -> str:
+    return str(install_dir).replace("/", "_").replace("-", "_") + ".lock"
+
+
+def module_install_dir(module: str, settings: EasyBuildLockSettings) -> Path:
+    return settings.installpath_software / module
+
+
+def existing_lock_paths_for_modules(
+    modules: tuple[str, ...], settings: EasyBuildLockSettings
+) -> tuple[Path, ...]:
+    locks: list[Path] = []
+    for module in modules:
+        lock_path = settings.locks_dir / easybuild_lock_name(
+            module_install_dir(module, settings)
+        )
+        if lock_path.exists():
+            locks.append(lock_path)
+    return tuple(locks)
+
+
+def existing_lock_paths_matching_modules(
+    modules: tuple[str, ...], settings: EasyBuildLockSettings
+) -> tuple[Path, ...]:
+    if not settings.locks_dir.is_dir():
+        return ()
+
+    normalized_modules = {
+        module.replace("/", "_").replace("-", "_").lower()
+        for module in modules
+        if module
+    }
+    locks: list[Path] = []
+    for lock_path in settings.locks_dir.glob("*.lock"):
+        lock_name = lock_path.name.lower()
+        if any(module in lock_name for module in normalized_modules):
+            locks.append(lock_path)
+    return tuple(sorted(locks))
+
+
+def modules_from_missing_lines(lines: tuple[str, ...]) -> tuple[str, ...]:
+    modules: list[str] = []
+    for line in lines:
+        if " (module: " not in line:
+            continue
+        module = line.split(" (module: ", 1)[1].rstrip(")")
+        if module:
+            modules.append(module)
+    return tuple(modules)
+
+
+def print_lock_warning(lock_paths: tuple[Path, ...]) -> None:
+    if not lock_paths:
+        return
+    err_console.print(
+        "WARNING: EasyBuild lock(s) found. A previous Slurm job may have been "
+        "cancelled or interrupted before EasyBuild could clean up its locks.",
+        style="bold yellow",
+    )
+    for lock_path in lock_paths:
+        err_console.print(f"  {lock_path}", style="yellow")
+    err_console.print(
+        "Only remove stale locks after confirming no matching EasyBuild job is still running.",
+        style="yellow",
+    )
+
+
 def detect_log_status(path: Path) -> str:
     content = path.read_text(encoding="utf-8", errors="replace")
     if LOG_FAILURE_PATTERN.search(content):
@@ -569,6 +707,7 @@ def check_logs(
     success_count = 0
     unknown_count = 0
     printed_count = 0
+    unknown_modules: list[str] = []
 
     for path in log_files:
         status = detect_log_status(path)
@@ -581,6 +720,7 @@ def check_logs(
             success_count += 1
         else:
             unknown_count += 1
+            unknown_modules.append(module)
 
         if status == "SUCCESS" and not show_success:
             continue
@@ -597,6 +737,12 @@ def check_logs(
     console.print(
         f"\nTotals: {failed_count} failed, {success_count} succeeded, {unknown_count} unknown"
     )
+
+    if unknown_modules:
+        lock_paths = existing_lock_paths_matching_modules(
+            tuple(unknown_modules), lock_settings_from_config(config)
+        )
+        print_lock_warning(lock_paths)
 
     if failed_count > 0 or unknown_count > 0:
         exit_with_status(1)
@@ -636,6 +782,15 @@ def install(
         job_max_walltime,
     )
     stack = resolve_for_command(ctx, args, materialize_prs=True)
+    err_console.print("Checking for existing EasyBuild locks...")
+    _, missing_lines = collect_missing(stack)
+    lock_paths = existing_lock_paths_for_modules(
+        modules_from_missing_lines(missing_lines), lock_settings_from_stack(stack)
+    )
+    if lock_paths:
+        print_lock_warning(lock_paths)
+        raise typer.Exit(1)
+
     selected_job_log_dir = job_log_dir(stack)
     selected_job_log_dir.mkdir(parents=True, exist_ok=True)
     exit_with_status(

@@ -1,6 +1,15 @@
 from typer.testing import CliRunner
 
-from ebstack.cli import CommonArgs, app, parse_since_epoch, to_cli_options
+from ebstack.cli import (
+    CommonArgs,
+    EasyBuildLockSettings,
+    app,
+    easybuild_lock_name,
+    existing_lock_paths_for_modules,
+    existing_lock_paths_matching_modules,
+    parse_since_epoch,
+    to_cli_options,
+)
 from ebstack.models import Architecture, StackConfig
 from ebstack.resolve import build_robot_options, merge_jobs, merged_easybuild_options
 
@@ -99,6 +108,34 @@ def test_merged_easybuild_options_supports_flag_style_options() -> None:
     assert merged_easybuild_options(
         (("--job-cores", "8"),), [("--logtostdout", ""), ("--tmp-logdir=/shared", "")]
     ) == ["--job-cores=8", "--logtostdout", "--tmp-logdir=/shared"]
+
+
+def test_existing_lock_paths_for_modules_uses_easybuild_lock_name(tmp_path) -> None:
+    settings = EasyBuildLockSettings(
+        locks_dir=tmp_path / "software" / ".locks",
+        installpath_software=tmp_path / "software",
+    )
+    lock_path = settings.locks_dir / easybuild_lock_name(
+        settings.installpath_software / "GPAW/25.7.0-foss-2025b-CUDA-12.9.1"
+    )
+    lock_path.mkdir(parents=True)
+
+    assert existing_lock_paths_for_modules(
+        ("GPAW/25.7.0-foss-2025b-CUDA-12.9.1",), settings
+    ) == (lock_path,)
+
+
+def test_existing_lock_paths_matching_modules_finds_unknown_log_lock(tmp_path) -> None:
+    settings = EasyBuildLockSettings(
+        locks_dir=tmp_path / "software" / ".locks",
+        installpath_software=tmp_path / "software",
+    )
+    lock_path = settings.locks_dir / easybuild_lock_name(
+        settings.installpath_software / "OpenMPI/5.0.8-GCC-14.3.0"
+    )
+    lock_path.mkdir(parents=True)
+
+    assert existing_lock_paths_matching_modules(("OpenMPI",), settings) == (lock_path,)
 
 
 def test_robot_options_keep_easybuild_robot_paths_without_overlays(monkeypatch) -> None:
