@@ -448,8 +448,14 @@ def easybuild_lock_name(install_dir: Path) -> str:
     return str(install_dir).replace("/", "_") + ".lock"
 
 
-def module_install_dir(module: str, settings: EasyBuildLockSettings) -> Path:
-    return settings.installpath_software / module
+def software_install_dir(module: str, settings: EasyBuildLockSettings) -> Path:
+    if "/" in module:
+        return settings.installpath_software / module
+    parts = re.split(r"-(?=\d)", module, maxsplit=1)
+    if len(parts) == 1:
+        return settings.installpath_software / module
+    name, version = parts
+    return settings.installpath_software / name / version
 
 
 def existing_lock_paths(
@@ -459,7 +465,7 @@ def existing_lock_paths(
     locks: list[Path] = []
     for module in modules:
         lock_path = settings.locks_dir / easybuild_lock_name(
-            module_install_dir(module, settings)
+            software_install_dir(module, settings)
         )
         if lock_path.exists():
             locks.append(lock_path)

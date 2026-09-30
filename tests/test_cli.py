@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from ebstack.cli import (
@@ -8,6 +10,7 @@ from ebstack.cli import (
     existing_lock_paths,
     lock_settings_from_options,
     parse_since_epoch,
+    software_install_dir,
     to_cli_options,
 )
 from ebstack.models import Architecture, StackConfig
@@ -120,6 +123,25 @@ def test_existing_lock_paths_uses_easybuild_lock_name(tmp_path) -> None:
     assert lock_name.endswith("_LLVM_20.1.8-GCCcore-14.3.0.lock")
 
     lock_path = settings.locks_dir / lock_name
+    lock_path.mkdir(parents=True)
+
+    assert existing_lock_paths((module,), settings) == (lock_path,)
+
+
+def test_existing_lock_paths_converts_dash_form_to_software_install_dir(
+    tmp_path,
+) -> None:
+    settings = EasyBuildLockSettings(
+        locks_dir=tmp_path / "software" / ".locks",
+        installpath_software=Path("/home/modules/software"),
+    )
+    module = "LLVM-20.1.8-GCCcore-14.3.0"
+    install_dir = software_install_dir(module, settings)
+    assert install_dir == Path("/home/modules/software/LLVM/20.1.8-GCCcore-14.3.0")
+
+    lock_path = (
+        settings.locks_dir / "_home_modules_software_LLVM_20.1.8-GCCcore-14.3.0.lock"
+    )
     lock_path.mkdir(parents=True)
 
     assert existing_lock_paths((module,), settings) == (lock_path,)
