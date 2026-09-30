@@ -448,8 +448,9 @@ def module_install_dir(module: str, settings: EasyBuildLockSettings) -> Path:
     return settings.installpath_software / module
 
 
-def existing_lock_paths_for_modules(
-    modules: tuple[str, ...], settings: EasyBuildLockSettings
+def existing_lock_paths(
+    modules: tuple[str, ...],
+    settings: EasyBuildLockSettings,
 ) -> tuple[Path, ...]:
     locks: list[Path] = []
     for module in modules:
@@ -459,25 +460,6 @@ def existing_lock_paths_for_modules(
         if lock_path.exists():
             locks.append(lock_path)
     return tuple(locks)
-
-
-def existing_lock_paths_matching_modules(
-    modules: tuple[str, ...], settings: EasyBuildLockSettings
-) -> tuple[Path, ...]:
-    if not settings.locks_dir.is_dir():
-        return ()
-
-    normalized_modules = {
-        module.replace("/", "_").replace("-", "_").lower()
-        for module in modules
-        if module
-    }
-    locks: list[Path] = []
-    for lock_path in settings.locks_dir.glob("*.lock"):
-        lock_name = lock_path.name.lower()
-        if any(module in lock_name for module in normalized_modules):
-            locks.append(lock_path)
-    return tuple(sorted(locks))
 
 
 def modules_from_missing_lines(lines: tuple[str, ...]) -> tuple[str, ...]:
@@ -739,7 +721,7 @@ def check_logs(
     )
 
     if unknown_modules:
-        lock_paths = existing_lock_paths_matching_modules(
+        lock_paths = existing_lock_paths(
             tuple(unknown_modules), lock_settings_from_config(config)
         )
         print_lock_warning(lock_paths)
@@ -784,8 +766,9 @@ def install(
     stack = resolve_for_command(ctx, args, materialize_prs=True)
     err_console.print("Checking for existing EasyBuild locks...")
     _, missing_lines = collect_missing(stack)
-    lock_paths = existing_lock_paths_for_modules(
-        modules_from_missing_lines(missing_lines), lock_settings_from_stack(stack)
+    lock_paths = existing_lock_paths(
+        modules_from_missing_lines(missing_lines),
+        lock_settings_from_stack(stack),
     )
     if lock_paths:
         print_lock_warning(lock_paths)
