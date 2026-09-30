@@ -37,7 +37,7 @@ from .resolve import (
 )
 
 DEFAULT_REPO_URL = "https://github.com/easybuilders/easybuild-easyconfigs.git"
-DEFAULT_EASYBUILD_INSTALLPATH = Path.home() / ".local" / "easybuild"
+DEFAULT_EASYBUILD_PREFIX = Path.home() / ".local" / "easybuild"
 DEFAULT_EASYBUILD_SOFTWARE_SUBDIR = "software"
 
 console = Console()
@@ -397,10 +397,14 @@ def path_from_value(value: str | None, default: Path | None = None) -> Path | No
 
 
 def lock_settings_from_options(options: tuple[str, ...]) -> EasyBuildLockSettings:
+    prefix = path_from_value(
+        option_value(options, "--prefix") or os.environ.get("EASYBUILD_PREFIX"),
+        DEFAULT_EASYBUILD_PREFIX,
+    )
     installpath = path_from_value(
         option_value(options, "--installpath")
         or os.environ.get("EASYBUILD_INSTALLPATH"),
-        DEFAULT_EASYBUILD_INSTALLPATH,
+        prefix,
     )
     subdir_software = (
         option_value(options, "--subdir-software")

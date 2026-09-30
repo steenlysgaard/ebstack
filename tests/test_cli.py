@@ -6,6 +6,7 @@ from ebstack.cli import (
     app,
     easybuild_lock_name,
     existing_lock_paths,
+    lock_settings_from_options,
     parse_since_epoch,
     to_cli_options,
 )
@@ -122,6 +123,46 @@ def test_existing_lock_paths_uses_easybuild_lock_name(tmp_path) -> None:
     assert existing_lock_paths(("GPAW/25.7.0-foss-2025b-CUDA-12.9.1",), settings) == (
         lock_path,
     )
+
+
+def test_lock_settings_honor_easybuild_prefix(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EASYBUILD_PREFIX", str(tmp_path / "eb-prefix"))
+
+    settings = lock_settings_from_options(())
+
+    assert settings.installpath_software == tmp_path / "eb-prefix" / "software"
+    assert settings.locks_dir == tmp_path / "eb-prefix" / "software" / ".locks"
+
+
+def test_lock_settings_direct_installpath_overrides_prefix(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("EASYBUILD_PREFIX", str(tmp_path / "eb-prefix"))
+
+    settings = lock_settings_from_options(
+        ("--installpath", str(tmp_path / "install"), "--subdir-software=apps")
+    )
+
+    assert settings.installpath_software == tmp_path / "install" / "apps"
+    assert settings.locks_dir == tmp_path / "install" / "apps" / ".locks"
+
+
+def test_lock_settings_direct_software_and_locks_dirs_take_precedence(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setenv("EASYBUILD_PREFIX", str(tmp_path / "eb-prefix"))
+
+    settings = lock_settings_from_options(
+        (
+            "--installpath-software",
+            str(tmp_path / "software"),
+            "--locks-dir",
+            str(tmp_path / "locks"),
+        )
+    )
+
+    assert settings.installpath_software == tmp_path / "software"
+    assert settings.locks_dir == tmp_path / "locks"
 
 
 def test_robot_options_keep_easybuild_robot_paths_without_overlays(monkeypatch) -> None:
