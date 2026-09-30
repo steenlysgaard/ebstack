@@ -472,6 +472,10 @@ def existing_lock_paths(
     return tuple(locks)
 
 
+def easybuild_locks_present(settings: EasyBuildLockSettings) -> bool:
+    return settings.locks_dir.exists() and any(settings.locks_dir.glob("*.lock"))
+
+
 def modules_from_missing_lines(lines: tuple[str, ...]) -> tuple[str, ...]:
     modules: list[str] = []
     for line in lines:
@@ -775,14 +779,16 @@ def install(
     )
     stack = resolve_for_command(ctx, args, materialize_prs=True)
     err_console.print("Checking for existing EasyBuild locks...")
-    _, missing_lines = collect_missing(stack)
-    lock_paths = existing_lock_paths(
-        modules_from_missing_lines(missing_lines),
-        lock_settings_from_stack(stack),
-    )
-    if lock_paths:
-        print_lock_warning(lock_paths)
-        raise typer.Exit(1)
+    lock_settings = lock_settings_from_stack(stack)
+    if easybuild_locks_present(lock_settings):
+        _, missing_lines = collect_missing(stack)
+        lock_paths = existing_lock_paths(
+            modules_from_missing_lines(missing_lines),
+            lock_settings,
+        )
+        if lock_paths:
+            print_lock_warning(lock_paths)
+            raise typer.Exit(1)
 
     selected_job_log_dir = job_log_dir(stack)
     selected_job_log_dir.mkdir(parents=True, exist_ok=True)

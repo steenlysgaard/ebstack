@@ -7,6 +7,7 @@ from ebstack.cli import (
     EasyBuildLockSettings,
     app,
     easybuild_lock_name,
+    easybuild_locks_present,
     existing_lock_paths,
     lock_settings_from_options,
     parse_since_epoch,
@@ -145,6 +146,26 @@ def test_existing_lock_paths_converts_dash_form_to_software_install_dir(
     lock_path.mkdir(parents=True)
 
     assert existing_lock_paths((module,), settings) == (lock_path,)
+
+
+def test_easybuild_locks_present_checks_for_lock_entries(tmp_path) -> None:
+    settings = EasyBuildLockSettings(
+        locks_dir=tmp_path / "software" / ".locks",
+        installpath_software=tmp_path / "software",
+    )
+
+    assert not easybuild_locks_present(settings)
+
+    settings.locks_dir.mkdir(parents=True)
+    assert not easybuild_locks_present(settings)
+
+    (settings.locks_dir / "README").write_text("not a lock\n", encoding="utf-8")
+    assert not easybuild_locks_present(settings)
+
+    (
+        settings.locks_dir / "_home_modules_software_LLVM_20.1.8-GCCcore-14.3.0.lock"
+    ).mkdir()
+    assert easybuild_locks_present(settings)
 
 
 def test_lock_settings_honor_easybuild_prefix(monkeypatch, tmp_path) -> None:
