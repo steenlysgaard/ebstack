@@ -255,6 +255,8 @@ def test_include_easyblocks_from_pr_options_are_materialized(tmp_path) -> None:
         },
     )
     overlay = tmp_path / "overlay" / "easybuild" / "easyblocks"
+    (overlay / "l").mkdir(parents=True)
+    (overlay / "l" / "lammps.py").write_text("# easyblock\n", encoding="utf-8")
 
     unresolved = resolve_stack(config=config, cpu_arch="zen4", cli_options=CliOptions())
     resolved = resolve_stack(
@@ -267,12 +269,7 @@ def test_include_easyblocks_from_pr_options_are_materialized(tmp_path) -> None:
     assert unresolved.easyblock_prs == ("1964", "1965")
     assert unresolved.options == ()
     assert resolved.options == (
-        "--include-easyblocks="
-        + str(overlay / "*.py")
-        + ","
-        + str(overlay / "[a-z]" / "*.py")
-        + ","
-        + str(overlay / "generic" / "*.py"),
+        "--include-easyblocks=" + str(overlay / "[a-z]" / "*.py"),
     )
 
 
@@ -280,6 +277,12 @@ def test_include_easyblocks_options_cover_specific_and_generic_easyblocks(
     tmp_path,
 ) -> None:
     overlay = tmp_path / "overlay" / "easybuild" / "easyblocks"
+    overlay.mkdir(parents=True)
+    (overlay / "custom.py").write_text("# easyblock\n", encoding="utf-8")
+    (overlay / "p").mkdir()
+    (overlay / "p" / "python.py").write_text("# easyblock\n", encoding="utf-8")
+    (overlay / "generic").mkdir()
+    (overlay / "generic" / "cmakemake.py").write_text("# easyblock\n", encoding="utf-8")
 
     assert build_include_easyblocks_options((overlay,)) == [
         "--include-easyblocks="
@@ -289,6 +292,13 @@ def test_include_easyblocks_options_cover_specific_and_generic_easyblocks(
         + ","
         + str(overlay / "generic" / "*.py")
     ]
+
+
+def test_include_easyblocks_options_skip_empty_paths(tmp_path) -> None:
+    overlay = tmp_path / "overlay" / "easybuild" / "easyblocks"
+    overlay.mkdir(parents=True)
+
+    assert build_include_easyblocks_options((overlay,)) == []
 
 
 def test_check_logs_reports_failed_and_unknown_logs(tmp_path) -> None:

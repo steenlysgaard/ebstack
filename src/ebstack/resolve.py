@@ -300,7 +300,9 @@ def build_include_easyblocks_options(easyblock_overlays: tuple[Path, ...]) -> li
         return []
     paths: list[str] = []
     for overlay in easyblock_overlays:
-        paths.append(str(overlay / "*.py"))
-        paths.append(str(overlay / "[a-z]" / "*.py"))
-        paths.append(str(overlay / "generic" / "*.py"))
+        for pattern in ("*.py", "[a-z]/*.py", "generic/*.py"):
+            if tuple(overlay.glob(pattern)):
+                paths.append(str(overlay / pattern))
+    if not paths:
+        return []
     return ["--include-easyblocks=" + ",".join(paths)]
