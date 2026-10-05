@@ -58,5 +58,7 @@ class ResolvedStack:
     cli_easybuild_options: tuple[str, ...]
     sbatch_env: tuple[str, ...]
     easyconfig_prs: tuple[str, ...]
+    easyblock_prs: tuple[str, ...]
     robot_overlays: tuple[Path, ...]
+    easyblock_overlays: tuple[Path, ...]
     robot_options: tuple[str, ...]

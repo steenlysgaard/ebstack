@@ -16,9 +16,44 @@ def cache_root() -> Path:
 def materialize_easyconfigs_prs(
     prs: tuple[str, ...], *, repo_url: str, cache_dir: Path | None = None
 ) -> tuple[Path, ...]:
+    return materialize_prs(
+        prs,
+        repo_url=repo_url,
+        repo_name="easybuild-easyconfigs",
+        overlays_name="overlays",
+        changed_root="easybuild/easyconfigs",
+        returned_root="easybuild/easyconfigs",
+        cache_dir=cache_dir,
+    )
+
+
+def materialize_easyblocks_prs(
+    prs: tuple[str, ...], *, repo_url: str, cache_dir: Path | None = None
+) -> tuple[Path, ...]:
+    return materialize_prs(
+        prs,
+        repo_url=repo_url,
+        repo_name="easybuild-easyblocks",
+        overlays_name="easyblock-overlays",
+        changed_root="easybuild/easyblocks",
+        returned_root="easybuild/easyblocks",
+        cache_dir=cache_dir,
+    )
+
+
+def materialize_prs(
+    prs: tuple[str, ...],
+    *,
+    repo_url: str,
+    repo_name: str,
+    overlays_name: str,
+    changed_root: str,
+    returned_root: str,
+    cache_dir: Path | None = None,
+) -> tuple[Path, ...]:
     root = cache_dir or cache_root()
-    repo_dir = root / "easybuild-easyconfigs"
-    overlays_dir = root / "overlays"
+    repo_dir = root / repo_name
+    overlays_dir = root / overlays_name
     overlays_dir.mkdir(parents=True, exist_ok=True)
 
     if not prs:
@@ -37,12 +72,12 @@ def materialize_easyconfigs_prs(
     for pr in prs:
         pr_ref = f"refs/pr/{pr}"
         overlay = overlays_dir / f"pr-{pr}"
-        overlay_easyconfigs = overlay / "easybuild" / "easyconfigs"
+        overlay_root = overlay / returned_root
 
         run_git(["-C", str(repo_dir), "fetch", "origin", f"+pull/{pr}/head:{pr_ref}"])
         if overlay.exists():
             shutil.rmtree(overlay)
-        overlay_easyconfigs.mkdir(parents=True, exist_ok=True)
+        overlay_root.mkdir(parents=True, exist_ok=True)
 
         changed = git_stdout(
             [
@@ -53,13 +88,11 @@ def materialize_easyconfigs_prs(
                 "--diff-filter=AMCR",
                 f"origin/develop...{pr_ref}",
                 "--",
-                "easybuild/easyconfigs",
+                changed_root,
             ]
         ).splitlines()
         if not changed:
-            raise EbstackError(
-                f"PR #{pr} does not change files under easybuild/easyconfigs"
-            )
+            raise EbstackError(f"PR #{pr} does not change files under {changed_root}")
 
         for changed_file in changed:
             target = overlay / changed_file
@@ -69,7 +102,7 @@ def materialize_easyconfigs_prs(
             )
             target.write_text(content, encoding="utf-8")
 
-        overlays.append(overlay_easyconfigs)
+        overlays.append(overlay_root)
 
     return tuple(overlays)
 

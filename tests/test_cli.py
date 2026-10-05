@@ -14,8 +14,15 @@ from ebstack.cli import (
     software_install_dir,
     to_cli_options,
 )
-from ebstack.models import Architecture, StackConfig
-from ebstack.resolve import build_robot_options, merge_jobs, merged_easybuild_options
+from ebstack.models import Architecture, Layer, StackConfig
+from ebstack.resolve import (
+    CliOptions,
+    build_include_easyblocks_options,
+    build_robot_options,
+    merge_jobs,
+    merged_easybuild_options,
+    resolve_stack,
+)
 
 
 def write_config(tmp_path):
@@ -221,6 +228,67 @@ def test_robot_options_prepend_pr_overlays_with_trailing_colon(
     monkeypatch.setenv("EASYBUILD_ROBOT_PATHS", "/existing/a:/existing/b")
 
     assert build_robot_options((overlay,)) == ["--robot=" + str(overlay) + ":"]
+
+
+def test_include_easyblocks_from_pr_options_are_materialized(tmp_path) -> None:
+    config = StackConfig(
+        path=tmp_path / "ebstack.yaml",
+        log_root=tmp_path / "logs",
+        defaults_jobs={},
+        architectures={
+            "zen4": Architecture(
+                name="zen4",
+                cpu_vendor="amd",
+                stack="cpu",
+                cuda_compute_capabilities=(),
+            )
+        },
+        layers={
+            "common": Layer(
+                name="common",
+                easyconfigs=("LAMMPS-7Aug2019-foss-2019b.eb",),
+                options=("--include-easyblocks-from-pr=1964,1965",),
+            ),
+            "amd": Layer(name="amd", easyconfigs=(), options=()),
+            "intel": Layer(name="intel", easyconfigs=(), options=()),
+            "gpu": Layer(name="gpu", easyconfigs=(), options=()),
+        },
+    )
+    overlay = tmp_path / "overlay" / "easybuild" / "easyblocks"
+
+    unresolved = resolve_stack(config=config, cpu_arch="zen4", cli_options=CliOptions())
+    resolved = resolve_stack(
+        config=config,
+        cpu_arch="zen4",
+        cli_options=CliOptions(),
+        easyblock_overlays=(overlay,),
+    )
+
+    assert unresolved.easyblock_prs == ("1964", "1965")
+    assert unresolved.options == ()
+    assert resolved.options == (
+        "--include-easyblocks="
+        + str(overlay / "*.py")
+        + ","
+        + str(overlay / "[a-z]" / "*.py")
+        + ","
+        + str(overlay / "generic" / "*.py"),
+    )
+
+
+def test_include_easyblocks_options_cover_specific_and_generic_easyblocks(
+    tmp_path,
+) -> None:
+    overlay = tmp_path / "overlay" / "easybuild" / "easyblocks"
+
+    assert build_include_easyblocks_options((overlay,)) == [
+        "--include-easyblocks="
+        + str(overlay / "*.py")
+        + ","
+        + str(overlay / "[a-z]" / "*.py")
+        + ","
+        + str(overlay / "generic" / "*.py")
+    ]
 
 
 def test_check_logs_reports_failed_and_unknown_logs(tmp_path) -> None:

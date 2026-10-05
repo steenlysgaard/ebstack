@@ -553,6 +553,12 @@ If a layer option contains `--from-pr=<PR>`, `ebstack` fetches that EasyBuild
 easyconfigs pull request, materializes changed files under a cache directory,
 and adds them as EasyBuild robot overlays.
 
+If a layer option contains `--include-easyblocks-from-pr=<PR>[,<PR>...]`,
+`ebstack` fetches those EasyBuild easyblocks pull requests, materializes changed
+files under a cache directory, and replaces the PR option with local
+`--include-easyblocks=<paths>` options. This avoids each EasyBuild build job
+checking out the easyblocks PR from GitHub itself.
+
 PR overlays are passed to EasyBuild with a trailing colon, for example
 `--robot=<overlay>:`. In EasyBuild, that means the overlay is prepended while the
 existing robot search path, including `EASYBUILD_ROBOT_PATHS`, is still used
@@ -564,10 +570,17 @@ The default easyconfigs repository is:
 https://github.com/easybuilders/easybuild-easyconfigs.git
 ```
 
+The default easyblocks repository is:
+
+```text
+https://github.com/easybuilders/easybuild-easyblocks.git
+```
+
 Override it with:
 
 ```bash
 export EASYCONFIGS_REPO_URL=<repo-url>
+export EASYBLOCKS_REPO_URL=<repo-url>
 ```
 
 ### Environment Expansion

@@ -124,6 +124,7 @@ def resolve_stack(
     cpu_arch: str,
     cli_options: CliOptions,
     robot_overlays: tuple[Path, ...] = (),
+    easyblock_overlays: tuple[Path, ...] = (),
 ) -> ResolvedStack:
     architecture = config.architectures.get(cpu_arch)
     if architecture is None:
@@ -138,7 +139,11 @@ def resolve_stack(
         extra_options.extend(layer.options)
 
     easyconfig_prs, extra_options = extract_from_pr_options(extra_options)
+    easyblock_prs, extra_options = extract_include_easyblocks_from_pr_options(
+        extra_options
+    )
     extra_options = normalize_accept_eula_options(extra_options)
+    extra_options.extend(build_include_easyblocks_options(easyblock_overlays))
 
     cuda_options: list[str] = []
     if "gpu" in layers:
@@ -166,7 +171,9 @@ def resolve_stack(
         cli_easybuild_options=tuple(cli_easybuild_options),
         sbatch_env=tuple(sbatch_env),
         easyconfig_prs=tuple(easyconfig_prs),
+        easyblock_prs=tuple(easyblock_prs),
         robot_overlays=robot_overlays,
+        easyblock_overlays=easyblock_overlays,
         robot_options=tuple(robot_options),
     )
 
@@ -208,6 +215,37 @@ def extract_from_pr_options(options: list[str]) -> tuple[list[str], list[str]]:
         else:
             filtered.append(option)
     return prs, filtered
+
+
+def extract_include_easyblocks_from_pr_options(
+    options: list[str],
+) -> tuple[list[str], list[str]]:
+    prs: list[str] = []
+    filtered: list[str] = []
+    for option in options:
+        if option.startswith("--include-easyblocks-from-pr="):
+            value = option.split("=", 1)[1]
+            prs.extend(parse_pr_list(value, "--include-easyblocks-from-pr"))
+        elif option == "--include-easyblocks-from-pr":
+            raise EbstackError(
+                "Use --include-easyblocks-from-pr=<PR>[,<PR>...] in EasyBuild options"
+            )
+        # EasyBuild also supports --include-easyblocks-from-commit, which avoids
+        # GitHub API use and is more reproducible. Keep this PR-focused because
+        # current stacks need unmerged easyblock PRs.
+        else:
+            filtered.append(option)
+    return prs, filtered
+
+
+def parse_pr_list(value: str, option_name: str) -> list[str]:
+    prs: list[str] = []
+    for pr in value.split(","):
+        item = pr.strip()
+        if not item.isdigit() or int(item) <= 0:
+            raise EbstackError(f"{option_name} expects positive integer PR numbers")
+        prs.append(item)
+    return prs
 
 
 def normalize_accept_eula_options(options: list[str]) -> list[str]:
@@ -255,3 +293,14 @@ def build_robot_options(robot_overlays: tuple[Path, ...]) -> list[str]:
     if robot_overlays:
         return ["--robot=" + ":".join(str(path) for path in robot_overlays) + ":"]
     return ["--robot"]
+
+
+def build_include_easyblocks_options(easyblock_overlays: tuple[Path, ...]) -> list[str]:
+    if not easyblock_overlays:
+        return []
+    paths: list[str] = []
+    for overlay in easyblock_overlays:
+        paths.append(str(overlay / "*.py"))
+        paths.append(str(overlay / "[a-z]" / "*.py"))
+        paths.append(str(overlay / "generic" / "*.py"))
+    return ["--include-easyblocks=" + ",".join(paths)]

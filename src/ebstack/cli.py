@@ -24,7 +24,7 @@ from .easybuild import (
     run_command,
 )
 from .errors import EbstackError
-from .git_overlays import materialize_easyconfigs_prs
+from .git_overlays import materialize_easyblocks_prs, materialize_easyconfigs_prs
 from .models import ResolvedStack, StackConfig
 from .resolve import (
     CliOptions,
@@ -37,6 +37,7 @@ from .resolve import (
 )
 
 DEFAULT_REPO_URL = "https://github.com/easybuilders/easybuild-easyconfigs.git"
+DEFAULT_EASYBLOCKS_REPO_URL = "https://github.com/easybuilders/easybuild-easyblocks.git"
 DEFAULT_EASYBUILD_PREFIX = Path.home() / ".local" / "easybuild"
 DEFAULT_EASYBUILD_SOFTWARE_SUBDIR = "software"
 
@@ -256,17 +257,34 @@ def resolve_for_command(
         config=config, cpu_arch=cpu_arch, cli_options=to_cli_options(args)
     )
 
+    robot_overlays = ()
+    easyblock_overlays = ()
+
     if materialize_prs and stack.easyconfig_prs:
         repo_url = os.environ.get("EASYCONFIGS_REPO_URL", DEFAULT_REPO_URL)
         err_console.print(
             f"Checking out EasyBuild easyconfig PRs: {', '.join(stack.easyconfig_prs)}"
         )
-        overlays = materialize_easyconfigs_prs(stack.easyconfig_prs, repo_url=repo_url)
+        robot_overlays = materialize_easyconfigs_prs(
+            stack.easyconfig_prs, repo_url=repo_url
+        )
+
+    if materialize_prs and stack.easyblock_prs:
+        repo_url = os.environ.get("EASYBLOCKS_REPO_URL", DEFAULT_EASYBLOCKS_REPO_URL)
+        err_console.print(
+            f"Checking out EasyBuild easyblock PRs: {', '.join(stack.easyblock_prs)}"
+        )
+        easyblock_overlays = materialize_easyblocks_prs(
+            stack.easyblock_prs, repo_url=repo_url
+        )
+
+    if robot_overlays or easyblock_overlays:
         stack = resolve_stack(
             config=config,
             cpu_arch=cpu_arch,
             cli_options=to_cli_options(args),
-            robot_overlays=overlays,
+            robot_overlays=robot_overlays,
+            easyblock_overlays=easyblock_overlays,
         )
 
     return stack
@@ -319,6 +337,10 @@ def print_config(stack, *, command: list[str], label: str) -> None:
             "Easyconfigs PRs",
             " ".join(stack.easyconfig_prs) if stack.easyconfig_prs else "none",
         ),
+        (
+            "Easyblocks PRs",
+            " ".join(stack.easyblock_prs) if stack.easyblock_prs else "none",
+        ),
         ("Execution", label),
     ]
     table = Table(show_header=False, box=None, padding=(0, 2))
@@ -335,6 +357,9 @@ def print_config(stack, *, command: list[str], label: str) -> None:
     print_items("EasyBuild options", tuple(display_options))
     print_items(
         "Easyconfig PR overlays", tuple(str(path) for path in stack.robot_overlays)
+    )
+    print_items(
+        "Easyblock PR overlays", tuple(str(path) for path in stack.easyblock_overlays)
     )
     print_items("Slurm environment", stack.sbatch_env)
     console.print("\nEasyBuild command:")
